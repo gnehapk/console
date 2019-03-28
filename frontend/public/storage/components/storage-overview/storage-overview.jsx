@@ -3,6 +3,7 @@ import {
   StorageOverview as KubevirtStorageOverview,
   ClusterOverviewContext,
   getResource,
+  StorageTopConsumersStats,
 } from 'kubevirt-web-ui-components';
 
 import {
@@ -13,8 +14,12 @@ import {
   VirtualMachineModel,
   InfrastructureModel,
 } from '../../../models';
+
 import { WithResources } from '../../../kubevirt/components/utils/withResources';
 import { LoadingInline } from '../../../kubevirt/components/utils/okdutils';
+import { coFetchJSON } from '../../../co-fetch';
+
+const REFRESH_TIMEOUT = 30000;
 
 const resourceMap = {
   nodes: {
@@ -83,6 +88,41 @@ export class StorageOverview extends React.Component {
   constructor(props) {
     super(props);
     this.state = {};
+
+    this.setConsumersData = this._setConsumersData.bind(this);
+  }
+
+  _setConsumersData(key, response) {
+    this.setState(state => ({
+      consumersData: {
+        ...state.consumersData,
+        [key]: response,
+      },
+    }));
+  }
+
+  fetchPrometheusQuery(query, callback) {
+    const promURL = window.SERVER_FLAGS.prometheusBaseURL;
+    const url = `${promURL}/api/v1/query?query=${encodeURIComponent(query)}`;
+    coFetchJSON(url).then(result => {
+      if (this._isMounted) {
+        callback(result);
+      }
+    }).then(() => {
+      if (this._isMounted) {
+        setTimeout(() => this.fetchPrometheusQuery(query, callback), REFRESH_TIMEOUT);
+      }
+    });
+  }
+
+  componentDidMount() {
+    this._isMounted = true;
+
+    //this.fetchPrometheusQuery(CONSUMERS_CPU_QUERY, response => this.setConsumersData('workloadCpuResults', response));
+  }
+
+  componentWillUnmount() {
+    this._isMounted = false;
   }
 
   render() {
@@ -95,6 +135,13 @@ export class StorageOverview extends React.Component {
             ...this.state.detailsData,
           },
           inventoryData: getInventoryData(resources), // k8s object loaded via WithResources
+          StorageTopConsumersStats, // TODO: mock, replace by real data and remove from web-ui-components
+
+          consumersData: {
+            ...this.state.consumersData,
+            LoadingComponent: LoadingInline,
+          },
+
         },
       };
     };
