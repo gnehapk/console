@@ -3,6 +3,7 @@ import {
   StorageOverview as KubevirtStorageOverview,
   ClusterOverviewContext,
   getResource,
+  TopConsumersStats,
 } from 'kubevirt-web-ui-components';
 
 import {
@@ -115,6 +116,7 @@ export class StorageOverview extends React.Component {
           LoadingComponent: LoadingInline,
           ...resources,
           ocsHealthData,
+          TopConsumersStats,
         },
       };
     };
