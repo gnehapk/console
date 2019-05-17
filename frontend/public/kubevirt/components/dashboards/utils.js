@@ -2,7 +2,8 @@ import { coFetchJSON } from '../../../co-fetch';
 
 export const REFRESH_TIMEOUT = 5000;
 
-export const getPrometheusBaseURL = () => window.SERVER_FLAGS.prometheusBaseURL;
+//export const getPrometheusBaseURL = () => window.SERVER_FLAGS.prometheusBaseURL;
+export const getPrometheusBaseURL = () => 'https://prometheus-k8s-openshift-monitoring.apps.neha.devcluster.openshift.com';
 
 export const getAlertManagerBaseURL = () => window.SERVER_FLAGS.alertManagerBaseURL;
 
