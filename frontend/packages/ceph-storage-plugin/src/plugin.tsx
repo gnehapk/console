@@ -1,4 +1,3 @@
-import * as React from 'react';
 import * as _ from 'lodash-es';
 
 import {
@@ -19,9 +18,6 @@ type ConsumedExtensions =
   | ModelDefinition
   | DashboardsOverviewHealthPrometheusSubsystem;
 
-import { getCephHealth } from './components/dashboards/health/health-card';
-
-import { StorageDashboard } from './components/dashboards/storage-dashboard';
 
 const CEPH_FLAG = 'CEPH';
 
@@ -45,25 +41,21 @@ const plugin: Plugin<ConsumedExtensions> = [
       section: 'Home',
       componentProps: {
         name: 'Ceph dashboard',
-        href: '/storage-dashboard',
+        href: '/test',
       },
-    },
-  },
-  {
-    type: 'Dashboards/Overview/Health/Prometheus',
-    properties: {
-      title: 'Ceph Health',
-      query: 'ceph_health_status',
-      healthHandler: getCephHealth,
     },
   },
   {
     type: 'Page/Route',
     properties: {
       exact: true,
-      path: '/storage-dashboard',
-      render: () => <StorageDashboard />,
+      path: '/test',
+      loader: () =>
+        import('./components/ocs-install/ocs-install' /* webpackChunkName: "metal3-baremetalhost" */).then(
+          (m) => m.createNewOCSCluster,
+        ),
     },
+      
   },
 ];
 
