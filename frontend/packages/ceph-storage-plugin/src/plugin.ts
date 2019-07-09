@@ -6,14 +6,19 @@ import {
   ModelFeatureFlag,
   ModelDefinition,
   Plugin,
+  RoutePage,
 } from '@console/plugin-sdk';
 
 import { GridPosition } from '@console/internal/components/dashboard';
 import * as models from './models';
+import { ClusterServiceVersionModel } from '@console/internal/models';
+import { referenceForModel } from '@console/internal/module/k8s';
 
-type ConsumedExtensions = ModelFeatureFlag | ModelDefinition | DashboardsTab | DashboardsCard;
+type ConsumedExtensions = ModelFeatureFlag | ModelDefinition | DashboardsTab | DashboardsCard | RoutePage;
 
 const CEPH_FLAG = 'CEPH';
+const apiObjectRef = 'core.libopenstorage.org~v1alpha1~StorageCluster';
+//const apiObjectRef = 'referenceForModel(OCSModel)';
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -46,6 +51,17 @@ const plugin: Plugin<ConsumedExtensions> = [
           './components/dashboard-page/storage-dashboard/data-resiliency/data-resiliency' /* webpackChunkName: "ceph-data-resiliency-card" */
         ).then((m) => m.DataResiliencyWithResources),
     },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
+      loader: () =>
+        import('./components/ocs-install/ocs-install' /* webpackChunkName: "ocs-service" */).then(
+          (m) => m.CreateOCSService,
+        ),
+    }
   },
 ];
 
