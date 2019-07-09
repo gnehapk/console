@@ -221,7 +221,7 @@ const VirtualBody: React.SFC<VirtualBodyProps> = (props) => {
   );
 };
 
-export type RowFunctionArgs = {obj: object, index: number, columns: [], isScrolling: boolean, key: string, style: object, customData?: object};
+export type RowFunctionArgs = {obj: object, index: number, columns: [], isScrolling: boolean, key: string, style: object, customData?: any};
 export type RowFunction = (args: RowFunctionArgs) => JSX.Element;
 
 export type VirtualBodyProps = {
@@ -239,8 +239,8 @@ export type VirtualBodyProps = {
   expand: boolean;
 }
 
-export type TableProps = {
-  customData?: object;
+type TableProps = {
+  customData?: any;
   data?: any[];
   defaultSortFunc?: string;
   defaultSortField?: string;
@@ -256,6 +256,7 @@ export type TableProps = {
   loaded?: boolean;
   reduxID?: string;
   reduxIDs?: string[];
+  onSelect?: Function;
 }
 
 type TablePropsFromState = {};
@@ -274,7 +275,7 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TablePro
 )(
   class TableInner extends React.Component<TableInnerProps, TableInnerState> {
     static propTypes = {
-      customData: PropTypes.object,
+      customData: PropTypes.any,
       data: PropTypes.array,
       unfilteredData: PropTypes.array,
       AllItemsFilteredMsg: PropTypes.func,
@@ -400,7 +401,8 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TablePro
       applySort(sortField, sortFunc || currentSortFunc, direction, columnTitle);
     }
 
-    _onSort(_event, index, direction){
+    _onSort(event, index, direction){
+      event.preventDefault();
       const sortColumn = this.state.columns[index - this._columnShift];
       this._applySort(sortColumn.sortField, sortColumn.sortFunc, direction, sortColumn.title);
       this.setState({
@@ -421,7 +423,7 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TablePro
         <TableWrapper virtualize={virtualize} ariaLabel={ariaLabel} ariaRowCount={ariaRowCount}>
           <PfTable
             cells={columns}
-            rows={virtualize ? [] : Rows({componentProps, selectedResourcesForKind, customData})}
+            rows={virtualize ? customData : Rows({componentProps, selectedResourcesForKind, customData})}
             gridBreakPoint={virtualize ? TableGridBreakpoint.none : TableGridBreakpoint.gridMd}
             onSort={this._onSort}
             onSelect={onSelect}
@@ -474,7 +476,7 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TablePro
 
 export type TableInnerProps = {
   'aria-label': string;
-  customData?: object;
+  customData?: any;
   currentSortField?: string;
   currentSortFunc?: string;
   currentSortOrder?: any;

@@ -7,6 +7,7 @@ import {
   ModelDefinition,
   Plugin,
   DashboardsOverviewQuery,
+  RoutePage,
 } from '@console/plugin-sdk';
 import { GridPosition } from '@console/internal/components/dashboard';
 import { OverviewQuery } from '@console/internal/components/dashboards-page/overview-dashboard/queries';
@@ -17,6 +18,7 @@ import {
   STORAGE_HEALTH_QUERIES,
 } from './constants/queries';
 import { getCephHealthState } from './components/dashboard-page/storage-dashboard/health-card/utils';
+import { ClusterServiceVersionModel } from '@console/internal/models';
 
 type ConsumedExtensions =
   | ModelFeatureFlag
@@ -24,9 +26,13 @@ type ConsumedExtensions =
   | DashboardsTab
   | DashboardsCard
   | DashboardsOverviewHealthPrometheusSubsystem
-  | DashboardsOverviewQuery;
+  | DashboardsOverviewQuery
+  | RoutePage;
 
 const CEPH_FLAG = 'CEPH';
+// keeping this for testing, will be removed once ocs operator available
+const apiObjectRef = 'core.libopenstorage.org~v1alpha1~StorageCluster';
+// const apiObjectRef = referenceForModel(models.OCSServiceModel);
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -47,6 +53,17 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       id: 'persistent-storage',
       title: 'Persistent Storage',
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
+      loader: () =>
+        import(
+          './components/ocs-install/ocs-install' /* webpackChunkName: "ceph-ocs-service" */
+        ).then((m) => m.CreateOCSService),
     },
   },
   // Ceph Storage Dashboard Left cards
