@@ -17,6 +17,7 @@ import {
   STORAGE_HEALTH_QUERIES,
 } from './constants/queries';
 import { getCephHealthState } from './components/dashboard-page/storage-dashboard/health-card/utils';
+import { ClusterServiceVersionModel } from '@console/internal/models';
 
 type ConsumedExtensions =
   | ModelFeatureFlag
@@ -27,6 +28,9 @@ type ConsumedExtensions =
   | DashboardsOverviewQuery;
 
 const CEPH_FLAG = 'CEPH';
+// keeping this for testing, will be removed once ocs operator available
+const apiObjectRef = 'core.libopenstorage.org~v1alpha1~StorageCluster';
+// const apiObjectRef = referenceForModel(models.OCSServiceModel);
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -69,18 +73,6 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/dashboard-page/storage-dashboard/details-card' /* webpackChunkName: "ceph-storage-details-card" */
         ).then((m) => m.default),
-    },
-  },
-  {
-    type: 'Dashboards/Card',
-    properties: {
-      tab: 'persistent-storage',
-      position: GridPosition.MAIN,
-      span: 6,
-      loader: () =>
-        import(
-          './components/dashboard-page/storage-dashboard/data-resiliency/data-resiliency' /* webpackChunkName: "ceph-storage-data-resiliency-card" */
-        ).then((m) => m.DataResiliencyWithResources),
     },
   },
   {
@@ -159,6 +151,17 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       queryKey: OverviewQuery.STORAGE_UTILIZATION,
       query: CAPACITY_USAGE_QUERIES[StorageDashboardQuery.CEPH_CAPACITY_USED],
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
+      loader: () =>
+        import(
+          './components/ocs-install/ocs-install' /* webpackChunkName: "ceph-ocs-service" */
+        ).then((m) => m.CreateOCSService),
     },
   },
 ];
