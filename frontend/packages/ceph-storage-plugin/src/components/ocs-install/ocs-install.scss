@@ -1,0 +1,18 @@
+.ocs-info__alert {
+  height: 2.6em;
+  box-shadow: var(--pf-global--BoxShadow--sm);
+  .pf-c-alert__icon {
+      height: 1.6em;
+      padding: 0.3em;
+  }
+  .pf-c-alert__title {
+      font-size: 0.8rem;
+      padding: 1.1em;
+  }
+  .ocs-desc__legend {
+      font-weight: 450;
+  }
+}
+.ocs-install__form {
+  max-width: 60%;
+}

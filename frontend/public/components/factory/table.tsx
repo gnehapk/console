@@ -305,6 +305,7 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TableOwn
     _bodyRef: any;
 
     constructor(props){
+      console.log(props, "table");
       super(props);
       const componentProps: any = _.pick(props, ['data', 'filters', 'selected', 'match', 'kindObj']);
       const columns = props.Header(componentProps);
