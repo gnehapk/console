@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import { Map as ImmutableMap } from 'immutable';
 
 import {
   DashboardsCard,
@@ -6,14 +7,19 @@ import {
   ModelFeatureFlag,
   ModelDefinition,
   Plugin,
+  DashboardsOverviewHealthPrometheusSubsystem,
+  HrefNavItem,
+  RoutePage,
 } from '@console/plugin-sdk';
 
 import { GridPosition } from '@console/internal/components/dashboard';
 import * as models from './models';
+import { ClusterServiceVersionModel } from '@console/internal/models';
 
-type ConsumedExtensions = ModelFeatureFlag | ModelDefinition | DashboardsTab | DashboardsCard;
+type ConsumedExtensions = ModelFeatureFlag | ModelDefinition | DashboardsTab | DashboardsCard | RoutePage;
 
 const CEPH_FLAG = 'CEPH';
+const apiObjectRef = 'core.libopenstorage.org~v1alpha1~StorageCluster';
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -46,6 +52,17 @@ const plugin: Plugin<ConsumedExtensions> = [
           './components/dashboard-page/storage-dashboard/data-resiliency/data-resiliency' /* webpackChunkName: "ceph-data-resiliency-card" */
         ).then((m) => m.DataResiliencyWithResources),
     },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
+      loader: () =>
+        import('./components/ocs-install/ocs-install' /* webpackChunkName: "ocs-new-cluster" */).then(
+          (m) => m.createNewOCSCluster,
+        ),
+    }
   },
 ];
 
