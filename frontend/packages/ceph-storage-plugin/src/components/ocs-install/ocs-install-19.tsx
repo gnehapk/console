@@ -1,14 +1,17 @@
 import * as React from 'react';
 import * as _ from 'lodash';
-
+import * as classNames from 'classnames';
 import { match } from 'react-router';
 import { safeDump } from 'js-yaml';
-import { Alert, Button, ActionGroup } from '@patternfly/react-core';
+import { sortable } from '@patternfly/react-table';
+import { Alert } from '@patternfly/react-core';
+import { Set as ImmutableSet } from 'immutable';
 
 import { ButtonBar } from '@console/internal/components/utils/button-bar';
 import { history } from '@console/internal/components/utils/router';
 import {
   referenceForModel,
+  getNodeRoles,
   K8sResourceKind,
   K8sKind,
   k8sGet,
@@ -16,113 +19,164 @@ import {
   K8sResourceKindReference,
   Status,
 } from '@console/internal/module/k8s';
-import { BreadCrumbs, RequestSizeInput } from '@console/internal/components/utils/index';
-import { ListPage } from '@console/internal/components/factory';
+import {
+  ResourceLink,
+  BreadCrumbs,
+  humanizeBinaryBytes,
+} from '@console/internal/components/utils/index';
+import { Table, TableRow, TableData, ListPage } from '@console/internal/components/factory';
 import { NodeModel, ClusterServiceVersionModel } from '@console/internal/models';
 import { ClusterServiceVersionKind } from '@console/internal/components/operator-lifecycle-manager/index';
 import { CreateYAML } from '@console/internal/components/create-yaml';
-import { StorageClassDropdown } from '@console/internal/components/utils/storage-class-dropdown';
 import { OCSServiceModel } from '../../models';
-import { NodeList } from './node-list';
+
 import './ocs-install.scss';
-import { Tooltip } from '@console/internal/components/utils/tooltip';
+
+const tableColumnClasses = [
+  classNames('col-md-1', 'col-sm-1', 'col-xs-1'),
+  classNames('col-md-5', 'col-sm-6', 'col-xs-8'),
+  classNames('col-md-2', 'col-sm-3', 'hidden-2'),
+  classNames('col-md-2', 'hidden-sm', 'hidden-xs'),
+  classNames('col-md-2', 'hidden-2', 'hidden-xs'),
+];
+
+const NodeHeader = () => {
+  return [
+    {
+      title: 'Name',
+      sortField: 'metadata.name',
+      transforms: [sortable],
+      props: { className: tableColumnClasses[1] },
+    },
+    {
+      title: 'Role',
+      props: { className: tableColumnClasses[2] },
+    },
+    {
+      title: 'CPU',
+      props: { className: tableColumnClasses[3] },
+    },
+    {
+      title: 'Memory',
+      props: { className: tableColumnClasses[4] },
+    }
+  ];
+};
+
+const getConvertedUnits = (value, initialUnit, preferredUnit) => {
+  return (
+    humanizeBinaryBytes(_.slice(value, 0, value.length - 2).join(''), initialUnit, preferredUnit)
+      .string || '-'
+  );
+};
+
+const NodeRow: React.FC<NodeRowProps> = ({
+  obj: node,
+  index,
+  key,
+  style,
+  isSelected,
+  onSelect,
+}) => {
+  const roles = getNodeRoles(node).sort();
+
+  return (
+    <TableRow id={node.metadata.uid} index={index} trKey={key} style={style}>
+      <TableData className={`pf-c-table__check ${tableColumnClasses[0]}`}>
+        <input type="checkbox" checked={isSelected} onChange={() => onSelect(node)} />
+      </TableData>
+      <TableData className={tableColumnClasses[1]}>
+        <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />
+      </TableData>
+      <TableData className={tableColumnClasses[2]}>{roles.join(', ') || '-'}</TableData>
+      <TableData className={tableColumnClasses[3]}>
+        {_.get(node.status, 'capacity.cpu') || '-'} CPU
+      </TableData>
+      <TableData className={tableColumnClasses[4]}>
+        {getConvertedUnits(_.get(node.status, 'allocatable.memory'), 'KiB', 'GiB')}
+      </TableData>
+    </TableRow>
+  );
+};
+
+export const NodeList: React.FC<NodeListProps> = ({
+  data,
+  selectedNodes,
+  onSelectNode,
+  onSelectAll,
+}) => {
+  let actualData = data || [];
+  actualData = data.map((node) => {
+    (node as any).selected = selectedNodes.has(node);
+    //(node as any).selected = true;
+    return node;
+  });
+  return (
+    <Table
+      aria-label="Nodes"
+      loaded={true}
+      data={actualData}
+      customData={actualData} // HACK should not be necessary
+      Header={NodeHeader}
+      Row={(rowProps) =>
+        <NodeRow
+          {...rowProps}
+          isSelected={selectedNodes.has(rowProps.obj.metadata.uid)}
+          onSelect={onSelectNode} />}
+      onSelect={onSelectAll}
+      virtualize
+    />
+  );
+};
 
 export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.memo((props) => {
   const title = 'Create New OCS Service';
   const [error, setError] = React.useState('');
   const [inProgress, setProgress] = React.useState(false);
-  const [requestSizeUnit, setRequestSizeUnit] = React.useState('TiB');
-  const [requestSizeValue, setRequestSizeValue] = React.useState('4');
-  const [storageClass, setStorageClass] = React.useState('');
-  const [createBtnDisabled, setCreateBtnDisabled] = React.useState(true);
-  const [selectedNodesCnt, setSelectedNodesCnt] = React.useState(0);
-  const dropdownUnits = {
-    GiB: 'GiB',
-    TiB: 'TiB',
-    PiB: 'PiB',
-  };
+  // TODO need to track UIDs of selected nodes, instead of node objects themselves
+  // this is because data (list of nodes) keeps changing over time, due to table refresh
+  const [selectedNodes, setSelectedNodes] = React.useState(ImmutableSet<string>());
 
-  // must initialize like this w/ at least one item, current bug in pf-react row.every for selectAll
-  // setting a dummy value for now
-  const initialSelectionState = [{ selected: false }];
-  let [selectedNodeData, setSelectedNodeData] = React.useState(initialSelectionState);
+  const toggleSelection = (s: ImmutableSet<string>, uid: string) => {
+    return s.has(uid) ? s.delete(uid) : s.add(uid);
+  }
 
-  const onSelect = (event: React.MouseEvent<HTMLButtonElement>, isSelected: boolean, virtualRowIndex: number, data: Array<any>) => {
-    event.preventDefault();
-    let newSelectedRowData = _.cloneDeep(selectedNodeData);
-
-    // clone `data` in case previous Firehose updates added elements, preserve existing selection state
-    _.each(data, (row, index: number) => {
-      if (index < newSelectedRowData.length) {
-        // preserve existing selection state
-        newSelectedRowData[index] = {
-          ...row,
-          uid: row.metadata.uid,
-          selected: newSelectedRowData[index].selected,
-        };
-      } else {
-        // set initial selection state from storage here if necessary...for now, initialize it false
-        newSelectedRowData.push({ ...row, uid: row.metadata.uid, selected: false });
-      }
-    });
-
-    if (virtualRowIndex !== -1) {
-      // set the selection based on virtualRowIndex node, it should exist in the array now
-      newSelectedRowData[virtualRowIndex].selected = isSelected;
-    } else {
-      // selectAll
-      newSelectedRowData = _.map(newSelectedRowData, (row) => ({ ...row, selected: isSelected }));
-    }
-    setSelectedNodeData(newSelectedRowData);
-
-    setSelectedNodesCnt(_.filter(newSelectedRowData, 'selected').length);
-  };
-
-  React.useEffect(() => {
-    selectedNodesCnt >= 3 ? setCreateBtnDisabled(false) : setCreateBtnDisabled(true);
-  }, [selectedNodesCnt])
-
-  const handleRequestSizeInputChange = obj => {
-    setRequestSizeUnit(obj.unit);
-    setRequestSizeValue(obj.value);
-  };
-
-  const handleStorageClass = storageClass => {
-    setStorageClass(_.get(storageClass, 'metadata.name'));
-  };
-
-  const updateSelectedNodes = data => {
-    setSelectedNodeData(data);
-    setSelectedNodesCnt(_.filter(data, 'selected').length);
-  };
-
-  const OCSNodeList = props => (
+  const OCSNodeList = (props) => (
     <NodeList
       {...props}
-      data={props.data}
-      customData={selectedNodeData}
-
-      onSingleSelect={(event, isSelected, virtualRowIndex) => {
-        event.preventDefault();
-        onSelect(event, isSelected, virtualRowIndex, props.data);
+      selectedNodes={selectedNodes}
+      onSelectNode={(node: K8sResourceKind) => {
+        setSelectedNodes(toggleSelection(selectedNodes, node.metadata.uid));
       }}
-      onSelectAll={(event, isSelected, virtualRowIndex) => {
-        event.preventDefault();
-        onSelect(event, isSelected, virtualRowIndex, props.data);
+      onSelectAll={(event, isSelected) => {
+        console.log(props, 'props');
+        const nodes = props.Node.data;
+        let newSelection = selectedNodes;
+        nodes.forEach((node) => {
+          //newSelection = toggleSelection(newSelection, node.metadata.uid);
+          if(isSelected) {
+            newSelection = newSelection.add(node.metadata.uid);
+          } else {
+            newSelection = newSelection.delete(node.metadata.uid);
+          }
+        });
+        setSelectedNodes(newSelection);
       }} />
   );
 
   const submit = (event: React.FormEvent<EventTarget>) => {
     event.preventDefault();
     event.stopPropagation();
+
     setProgress(true);
     setError('');
 
     k8sCreate(OCSServiceModel, props.sample, { ns: 'openshift-storage' })
       .then(() => {
         history.push(
+          // TODO this will cause URL string to be split across multiple lines
           `/k8s/ns/${props.namespace}/clusterserviceversions/${
-          props.clusterServiceVersion.metadata.name
+            props.clusterServiceVersion.metadata.name
           }/${referenceForModel(OCSServiceModel)}/${props.sample.metadata.name}`,
         );
         setProgress(false);
@@ -147,7 +201,7 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
         <div className="form-group co-create-route__name">
           <label className="co-required">Select Nodes</label>
           <div className="help-block" id="select-node-help">
-            A minimum of 3 nodes needs to be labeled with <code>cluster.ocs.openshift.io/openshift-storage=""</code> in order to create the OCS Service.
+            A minimum of 3 nodes needs to be labeled with role=storage-node in order to create the OCS Service
           </div>
           <Alert
             className="co-alert ceph-ocs-info__alert"
@@ -161,49 +215,14 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
             kind={NodeModel.kind}
             showTitle={false}
             ListComponent={OCSNodeList} />
-          <p className="help-block" id="nodes-selected">
-            {selectedNodesCnt} node(s) selected
-          </p>
-        </div>
-        <h4>OCS Service Capacity</h4>
-        <div className="form-group">
-          <label className="control-label" htmlFor="request-size-input">
-            Requested Capacity
-          </label>
-          <RequestSizeInput
-            name="requestSize"
-            required={false}
-            onChange={handleRequestSizeInputChange}
-            defaultRequestSizeUnit={requestSizeUnit}
-            defaultRequestSizeValue={requestSizeValue}
-            dropdownUnits={dropdownUnits}
-          />
-        </div>
-        <div className="form-group">
-          <Tooltip content="The Storage Class will be used to request storage from the underlying infrastructure to create the backing persistent volumes that will be used to provide the OpenShift Container Storage (OCS) service">
-            <StorageClassDropdown
-              onChange={handleStorageClass}
-              id="storageclass-dropdown"
-              required={false}
-              name="storageClass"
-            />
-          </Tooltip>
         </div>
         <ButtonBar errorMessage={error} inProgress={inProgress}>
-          <ActionGroup className="pf-c-form">
-            <Button
-              type="submit"
-              variant="primary"
-              isDisabled={createBtnDisabled}>
-              Create
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={history.goBack}>
-              Cancel
-            </Button>
-          </ActionGroup>
+          <button type="submit" className="btn btn-primary" id="save-changes">
+            Create
+          </button>
+          <button type="button" className="btn btn-default" onClick={history.goBack}>
+            Cancel
+          </button>
         </ButtonBar>
       </form>
     </div>
@@ -254,7 +273,6 @@ export const CreateOCSService: React.FC<CreateOCSServiceProps> = (props) => {
   //   event.preventDefault();
   //   setMethod('yaml');
   // };
-
   return (
     <React.Fragment>
       <div className="co-create-operand__header">
@@ -278,7 +296,6 @@ export const CreateOCSService: React.FC<CreateOCSServiceProps> = (props) => {
           operandModel={OCSServiceModel}
           sample={sample}
           clusterServiceVersion={clusterServiceVersion !== null && clusterServiceVersion.metadata}
-          //changeToYAMLMethod={changeToYAMLMethod}
         />
       )) ||
         (method === 'yaml' && <CreateOCSServiceYAML match={props.match} sample={sample} />)}
@@ -306,4 +323,20 @@ type CreateOCSServiceFormProps = {
 type CreateOCSServiceYAMLProps = {
   sample?: K8sResourceKind;
   match: match<{ appName: string; ns: string; plural: K8sResourceKindReference }>;
+};
+
+type NodeRowProps = {
+  obj: K8sResourceKind;
+  index: number;
+  key?: string;
+  style: object;
+  isSelected: boolean;
+  onSelect: (obj: K8sResourceKind) => void;
+};
+
+type NodeListProps = {
+  data: K8sResourceKind[];
+  selectedNodes: ImmutableSet<K8sResourceKind>;
+  onSelectNode: (node: K8sResourceKind) => void;
+  onSelectAll: (nodes: K8sResourceKind[]) => void;
 };

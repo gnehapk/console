@@ -137,9 +137,9 @@ class StorageClassDropdown_ extends React.Component<StorageClassDropdownProps, S
             id={id}
             menuClassName="dropdown-menu--text-wrap"
           />
-          <p className="help-block" id={describedBy}>
+          {describedBy && <p className="help-block" id={describedBy}>
             Storage class for the new claim.
-          </p>
+          </p>}
         </div>
       }
     </React.Fragment>;
