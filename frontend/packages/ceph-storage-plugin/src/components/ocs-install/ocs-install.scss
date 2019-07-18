@@ -1,6 +1,7 @@
 .ceph-ocs-info__alert {
   box-shadow: var(--pf-global--BoxShadow--sm);
   height: 2.6em;
+  margin-top: 0.6em;
   .ceph-ocs-desc__legend {
     font-weight: 450;
   }
@@ -16,3 +17,6 @@
 .ceph-ocs-install__form {
   max-width: 66%;
 }
+
+.ceph-yaml__link {  position: absolute;  margin-top: 1.5rem;  margin-left: 60%;}
+

@@ -41,7 +41,7 @@ const config: webpack.Configuration = {
         test: /(\.jsx?)|(\.tsx?)$/,
         exclude: /node_modules/,
         use: [
-          { loader: 'cache-loader' },
+          // { loader: 'cache-loader' },
           {
             loader: 'thread-loader',
             options: {
@@ -68,7 +68,7 @@ const config: webpack.Configuration = {
               publicPath: './',
             },
           },
-          { loader: 'cache-loader' },
+          // { loader: 'cache-loader' },
           { loader: 'thread-loader' },
           {
             loader: 'css-loader',

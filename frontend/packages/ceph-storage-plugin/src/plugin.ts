@@ -53,6 +53,17 @@ const plugin: Plugin<ConsumedExtensions> = [
       title: 'Persistent Storage',
     },
   },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
+      loader: () =>
+        import(
+          './components/ocs-install/ocs-install' /* webpackChunkName: "ceph-ocs-service" */
+        ).then((m) => m.CreateOCSService),
+    },
+  },
   // Ceph Storage Dashboard Left cards
   {
     type: 'Dashboards/Card',
@@ -166,17 +177,6 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       queryKey: OverviewQuery.STORAGE_UTILIZATION,
       query: CAPACITY_USAGE_QUERIES[StorageDashboardQuery.CEPH_CAPACITY_USED],
-    },
-  },
-  {
-    type: 'Page/Route',
-    properties: {
-      exact: true,
-      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
-      loader: () =>
-        import(
-          './components/ocs-install/ocs-install' /* webpackChunkName: "ceph-ocs-service" */
-        ).then((m) => m.CreateOCSService),
     },
   },
 ];
