@@ -5,6 +5,7 @@ import { match } from 'react-router';
 import { safeDump } from 'js-yaml';
 import { sortable } from '@patternfly/react-table';
 import { Alert } from '@patternfly/react-core';
+import { Set as ImmutableSet } from 'immutable';
 
 import { ButtonBar } from '@console/internal/components/utils/button-bar';
 import { history } from '@console/internal/components/utils/router';
@@ -43,7 +44,7 @@ const tableColumnClasses = [
   classNames('col-md-2', 'col-sm-4', 'col-xs-4'),
 ];
 
-const NodeTableHeader = () => {
+const NodeHeader = () => {
   return [
     {
       title: 'Name',
@@ -73,7 +74,6 @@ const NodeTableHeader = () => {
     },
   ];
 };
-NodeTableHeader.displayName = 'NodeTableHeader';
 const configMapsForAllNodes = {};
 
 const getConfigMaps = () => {
@@ -104,28 +104,21 @@ const getConvertedUnits = (value, initialUnit, preferredUnit) => {
   );
 };
 
-const NodeTableRow: React.FC<NodeTableRowProps> = ({
+const NodeRow: React.FC<NodeRowProps> = ({
   obj: node,
   index,
   key,
   style,
-  customData,
+  isSelected,
   onSelect,
 }) => {
   const roles = getNodeRoles(node).sort();
   const deviceCount = configMapsForAllNodes[node.metadata.name] || 0;
-  const isChecked = customData.length > index ? customData[index].selected : false;
 
   return (
     <TableRow id={node.metadata.uid} index={index} trKey={key} style={style}>
       <TableData className={`pf-c-table__check ${tableColumnClasses[0]}`}>
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => {
-            onSelect(e, e.target.checked, index);
-          }}
-        />
+        <input type="checkbox" checked={isSelected} onChange={() => onSelect(node)} />
       </TableData>
       <TableData className={tableColumnClasses[1]}>
         <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />
@@ -145,58 +138,31 @@ const NodeTableRow: React.FC<NodeTableRowProps> = ({
   );
 };
 
-export const NodeList: React.FC<NodeListProps> = (props) => {
-  const [selectedNodeData, setSelectedNodeData] = React.useState(props.customData);
-
-  const onSelect = (event, isSelected, virtualRowIndex, data) => {
-    event.preventDefault();
-    let newSelectedRowData = _.cloneDeep(selectedNodeData);
-
-    // clone `data` in case previous Firehose updates added elements, preserve existing selection state
-    _.each(data, (row, index: number) => {
-      if (index < newSelectedRowData.length) {
-        // preserve existing selection state
-        newSelectedRowData[index] = {
-          ...row,
-          uid: row.metadata.uid,
-          selected: newSelectedRowData[index].selected,
-        };
-      } else {
-        // set initial selection state from storage here if necessary...for now, initialize it false
-        newSelectedRowData.push({ ...row, uid: row.metadata.uid, selected: false });
-      }
-    });
-
-    if (virtualRowIndex !== -1) {
-      // set the selection based on virtualRowIndex node, it should exist in the array now
-      newSelectedRowData[virtualRowIndex].selected = isSelected;
-    } else {
-      // selectAll
-      newSelectedRowData = _.map(selectedNodeData, (row) => ({ ...row, selected: isSelected }));
-    }
-    setSelectedNodeData(newSelectedRowData);
-    props.onSelect(newSelectedRowData);
-  };
-
-  const onSingleSelect = (event, isSelected, virtualRowIndex) => {
-    event.preventDefault();
-    onSelect(event, isSelected, virtualRowIndex, props.data);
-  };
-
-  const onSelectAll = (event, isSelected, virtualRowIndex) => {
-    event.preventDefault();
-    onSelect(event, isSelected, virtualRowIndex, props.data);
-  };
-
+export const NodeList: React.FC<NodeListProps> = ({
+  data,
+  selectedNodes,
+  onSelectNode,
+  onSelectAll,
+}) => {
+  let actualData = data || [];
+  actualData = data.map((node) => {
+    (node as any).selected = selectedNodes.has(node);
+    return node;
+  });
   return (
     <Table
-      customData={selectedNodeData}
-      {...props}
-      Header={NodeTableHeader}
-      Row={(nodeProps) => <NodeTableRow {...nodeProps} onSelect={onSingleSelect} />} // this is the correct select callback for single row
       aria-label="Nodes"
+      loaded={true}
+      data={actualData}
+      customData={actualData} // HACK should not be necessary
+      Header={NodeHeader}
+      Row={(rowProps) =>
+        <NodeRow
+          {...rowProps}
+          isSelected={selectedNodes.has(rowProps.obj.metadata.uid)}
+          onSelect={onSelectNode} />}
+      onSelect={(event, isSelected) => onSelectAll(event, isSelected)}
       virtualize
-      onSelect={onSelectAll} // this is the selectAll callback for virtualized tables
     />
   );
 };
@@ -206,16 +172,36 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
   const [error, setError] = React.useState('');
   const [inProgress, setProgress] = React.useState(false);
   const [ipiInstallationMode, setIpiInstallationMode] = React.useState(true);
+  // TODO need to track UIDs of selected nodes, instead of node objects themselves
+  // this is because data (list of nodes) keeps changing over time, due to table refresh
+  const [selectedNodes, setSelectedNodes] = React.useState(ImmutableSet<string>());
 
-  // must initialize like this w/ at least one item, current bug in pf-react row.every for selectAll
-  // setting a dummy value for now
-  const initialSelectionState = [{ selected: false }];
-  const [selectedNodeData, setSelectedNodeData] = React.useState(initialSelectionState);
+  const toggleSelection = (s: ImmutableSet<string>, uid: string) => {
+    return s.has(uid) ? s.delete(uid) : s.add(uid);
+  }
 
-  const onSelect = (selectedRow) => {
-    // `newSelectedRowData` can be persisted somewhere after it is passed back up...
-    setSelectedNodeData(selectedRow);
-  };
+  const OCSNodeList = (props) => (
+    <NodeList
+      {...props}
+      selectedNodes={selectedNodes}
+      onSelectNode={(node: K8sResourceKind) => {
+        setSelectedNodes(toggleSelection(selectedNodes, node.metadata.uid));
+      }}
+      onSelectAll={(event, isSelected) => {
+        console.log(props, 'props');
+        const nodes = props.Node.data;
+        let newSelection = selectedNodes;
+        nodes.forEach((node) => {
+          //newSelection = toggleSelection(newSelection, node.metadata.uid);
+          if(isSelected) {
+            newSelection = newSelection.add(node.metadata.uid);
+          } else {
+            newSelection = newSelection.delete(node.metadata.uid);
+          }
+        });
+        setSelectedNodes(newSelection);
+      }} />
+  );
 
   React.useEffect(() => {
     if (!ipiInstallationMode) {
@@ -238,6 +224,7 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
     k8sCreate(OCSServiceModel, props.sample, { ns: 'openshift-storage' })
       .then(() => {
         history.push(
+          // TODO this will cause URL string to be split across multiple lines
           `/k8s/ns/${props.namespace}/clusterserviceversions/${
             props.clusterServiceVersion.metadata.name
           }/${referenceForModel(OCSServiceModel)}/${props.sample.metadata.name}`,
@@ -247,6 +234,7 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
       })
       .catch((err: Status) => setError(err.message));
   };
+
   return (
     <div className="ceph-ocs-install__form co-m-pane__body co-m-pane__form">
       <h1 className="co-m-pane__heading co-m-pane__heading--baseline">
@@ -306,15 +294,7 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
             <ListPage
               kind={NodeModel.kind}
               showTitle={false}
-              ListComponent={(nodeProps) => (
-                <NodeList
-                  {...nodeProps}
-                  data={nodeProps.data}
-                  customData={selectedNodeData}
-                  onSelect={onSelect}
-                />
-              )}
-            />
+              ListComponent={OCSNodeList} />
           )}
         </fieldset>
         <ButtonBar errorMessage={error} inProgress={inProgress}>
@@ -427,17 +407,18 @@ type CreateOCSServiceYAMLProps = {
   match: match<{ appName: string; ns: string; plural: K8sResourceKindReference }>;
 };
 
-type NodeTableRowProps = {
+type NodeRowProps = {
   obj: K8sResourceKind;
   index: number;
   key?: string;
   style: object;
-  customData?: any;
-  onSelect?: Function;
+  isSelected: boolean;
+  onSelect: (obj: K8sResourceKind) => void;
 };
 
 type NodeListProps = {
-  customData?: any;
-  onSelect?: Function;
-  data: Record<string, any>[];
+  data: K8sResourceKind[];
+  selectedNodes: ImmutableSet<K8sResourceKind>;
+  onSelectNode: (node: K8sResourceKind) => void;
+  onSelectAll: (nodes: K8sResourceKind[]) => void;
 };
