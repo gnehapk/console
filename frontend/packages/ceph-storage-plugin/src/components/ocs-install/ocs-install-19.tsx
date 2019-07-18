@@ -5,10 +5,10 @@ import { match } from 'react-router';
 import { safeDump } from 'js-yaml';
 import { sortable } from '@patternfly/react-table';
 import { Alert } from '@patternfly/react-core';
+import { Set as ImmutableSet } from 'immutable';
 
 import { ButtonBar } from '@console/internal/components/utils/button-bar';
 import { history } from '@console/internal/components/utils/router';
-import { RadioInput } from '@console/internal/components/radio';
 import {
   referenceForModel,
   getNodeRoles,
@@ -18,7 +18,6 @@ import {
   k8sCreate,
   K8sResourceKindReference,
   Status,
-  k8sList,
 } from '@console/internal/module/k8s';
 import {
   ResourceLink,
@@ -26,7 +25,7 @@ import {
   humanizeBinaryBytes,
 } from '@console/internal/components/utils/index';
 import { Table, TableRow, TableData, ListPage } from '@console/internal/components/factory';
-import { ConfigMapModel, NodeModel, ClusterServiceVersionModel } from '@console/internal/models';
+import { NodeModel, ClusterServiceVersionModel } from '@console/internal/models';
 import { ClusterServiceVersionKind } from '@console/internal/components/operator-lifecycle-manager/index';
 import { CreateYAML } from '@console/internal/components/create-yaml';
 import { OCSServiceModel } from '../../models';
@@ -35,15 +34,13 @@ import './ocs-install.scss';
 
 const tableColumnClasses = [
   classNames('col-md-1', 'col-sm-1', 'col-xs-1'),
-  classNames('col-md-3', 'col-sm-4', 'col-xs-7'),
-  classNames('col-md-1', 'col-sm-3', 'hidden-xs'),
-  classNames('col-md-1', 'hidden-sm', 'hidden-xs'),
+  classNames('col-md-5', 'col-sm-6', 'col-xs-8'),
+  classNames('col-md-2', 'col-sm-3', 'hidden-2'),
   classNames('col-md-2', 'hidden-sm', 'hidden-xs'),
-  classNames('col-md-2', 'hidden-sm', 'hidden-xs'),
-  classNames('col-md-2', 'col-sm-4', 'col-xs-4'),
+  classNames('col-md-2', 'hidden-2', 'hidden-xs'),
 ];
 
-const NodeTableHeader = () => {
+const NodeHeader = () => {
   return [
     {
       title: 'Name',
@@ -62,39 +59,8 @@ const NodeTableHeader = () => {
     {
       title: 'Memory',
       props: { className: tableColumnClasses[4] },
-    },
-    {
-      title: 'Capacity',
-      props: { className: tableColumnClasses[5] },
-    },
-    {
-      title: 'Devices',
-      props: { className: tableColumnClasses[6] },
-    },
+    }
   ];
-};
-NodeTableHeader.displayName = 'NodeTableHeader';
-const configMapsForAllNodes = {};
-
-const getConfigMaps = () => {
-  k8sList(ConfigMapModel, {
-    ns: 'openshift-storage',
-  }).then((configMaps) => {
-    configMaps.forEach((config) => {
-      const nodeName = config.metadata.labels && config.metadata.labels['rook.io/node'];
-
-      if (typeof nodeName !== 'undefined') {
-        try {
-          configMapsForAllNodes[nodeName] = JSON.parse(config.data.devices).length;
-        } catch (e) {
-          // ignore
-          // eslint-disable-next-line no-console
-          console.warn('Invalid JSON');
-          return;
-        }
-      }
-    });
-  });
 };
 
 const getConvertedUnits = (value, initialUnit, preferredUnit) => {
@@ -104,28 +70,20 @@ const getConvertedUnits = (value, initialUnit, preferredUnit) => {
   );
 };
 
-const NodeTableRow: React.FC<NodeTableRowProps> = ({
+const NodeRow: React.FC<NodeRowProps> = ({
   obj: node,
   index,
   key,
   style,
-  customData,
+  isSelected,
   onSelect,
 }) => {
   const roles = getNodeRoles(node).sort();
-  const deviceCount = configMapsForAllNodes[node.metadata.name] || 0;
-  const isChecked = customData.length > index ? customData[index].selected : false;
 
   return (
     <TableRow id={node.metadata.uid} index={index} trKey={key} style={style}>
       <TableData className={`pf-c-table__check ${tableColumnClasses[0]}`}>
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => {
-            onSelect(e, e.target.checked, index);
-          }}
-        />
+        <input type="checkbox" checked={isSelected} onChange={() => onSelect(node)} />
       </TableData>
       <TableData className={tableColumnClasses[1]}>
         <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />
@@ -137,66 +95,36 @@ const NodeTableRow: React.FC<NodeTableRowProps> = ({
       <TableData className={tableColumnClasses[4]}>
         {getConvertedUnits(_.get(node.status, 'allocatable.memory'), 'KiB', 'GiB')}
       </TableData>
-      <TableData className={tableColumnClasses[5]}>
-        {getConvertedUnits(_.get(node.status, 'capacity.memory'), 'KiB', 'GiB')}
-      </TableData>
-      <TableData className={tableColumnClasses[6]}>{deviceCount} Selected</TableData>
     </TableRow>
   );
 };
 
-export const NodeList: React.FC<NodeListProps> = (props) => {
-  const [selectedNodeData, setSelectedNodeData] = React.useState(props.customData);
-
-  const onSelect = (event, isSelected, virtualRowIndex, data) => {
-    event.preventDefault();
-    let newSelectedRowData = _.cloneDeep(selectedNodeData);
-
-    // clone `data` in case previous Firehose updates added elements, preserve existing selection state
-    _.each(data, (row, index: number) => {
-      if (index < newSelectedRowData.length) {
-        // preserve existing selection state
-        newSelectedRowData[index] = {
-          ...row,
-          uid: row.metadata.uid,
-          selected: newSelectedRowData[index].selected,
-        };
-      } else {
-        // set initial selection state from storage here if necessary...for now, initialize it false
-        newSelectedRowData.push({ ...row, uid: row.metadata.uid, selected: false });
-      }
-    });
-
-    if (virtualRowIndex !== -1) {
-      // set the selection based on virtualRowIndex node, it should exist in the array now
-      newSelectedRowData[virtualRowIndex].selected = isSelected;
-    } else {
-      // selectAll
-      newSelectedRowData = _.map(selectedNodeData, (row) => ({ ...row, selected: isSelected }));
-    }
-    setSelectedNodeData(newSelectedRowData);
-    props.onSelect(newSelectedRowData);
-  };
-
-  const onSingleSelect = (event, isSelected, virtualRowIndex) => {
-    event.preventDefault();
-    onSelect(event, isSelected, virtualRowIndex, props.data);
-  };
-
-  const onSelectAll = (event, isSelected, virtualRowIndex) => {
-    event.preventDefault();
-    onSelect(event, isSelected, virtualRowIndex, props.data);
-  };
-
+export const NodeList: React.FC<NodeListProps> = ({
+  data,
+  selectedNodes,
+  onSelectNode,
+  onSelectAll,
+}) => {
+  let actualData = data || [];
+  actualData = data.map((node) => {
+    (node as any).selected = selectedNodes.has(node);
+    //(node as any).selected = true;
+    return node;
+  });
   return (
     <Table
-      customData={selectedNodeData}
-      {...props}
-      Header={NodeTableHeader}
-      Row={(nodeProps) => <NodeTableRow {...nodeProps} onSelect={onSingleSelect} />} // this is the correct select callback for single row
       aria-label="Nodes"
+      loaded={true}
+      data={actualData}
+      customData={actualData} // HACK should not be necessary
+      Header={NodeHeader}
+      Row={(rowProps) =>
+        <NodeRow
+          {...rowProps}
+          isSelected={selectedNodes.has(rowProps.obj.metadata.uid)}
+          onSelect={onSelectNode} />}
+      onSelect={onSelectAll}
       virtualize
-      onSelect={onSelectAll} // this is the selectAll callback for virtualized tables
     />
   );
 };
@@ -205,28 +133,36 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
   const title = 'Create New OCS Service';
   const [error, setError] = React.useState('');
   const [inProgress, setProgress] = React.useState(false);
-  const [ipiInstallationMode, setIpiInstallationMode] = React.useState(true);
+  // TODO need to track UIDs of selected nodes, instead of node objects themselves
+  // this is because data (list of nodes) keeps changing over time, due to table refresh
+  const [selectedNodes, setSelectedNodes] = React.useState(ImmutableSet<string>());
 
-  // must initialize like this w/ at least one item, current bug in pf-react row.every for selectAll
-  // setting a dummy value for now
-  const initialSelectionState = [{ selected: false }];
-  const [selectedNodeData, setSelectedNodeData] = React.useState(initialSelectionState);
+  const toggleSelection = (s: ImmutableSet<string>, uid: string) => {
+    return s.has(uid) ? s.delete(uid) : s.add(uid);
+  }
 
-  const onSelect = (selectedRow) => {
-    // `newSelectedRowData` can be persisted somewhere after it is passed back up...
-    setSelectedNodeData(selectedRow);
-  };
-
-  React.useEffect(() => {
-    if (!ipiInstallationMode) {
-      getConfigMaps();
-    }
-  }, [ipiInstallationMode]);
-
-  const updateMode = () => {
-    const mode = !ipiInstallationMode;
-    setIpiInstallationMode(mode);
-  };
+  const OCSNodeList = (props) => (
+    <NodeList
+      {...props}
+      selectedNodes={selectedNodes}
+      onSelectNode={(node: K8sResourceKind) => {
+        setSelectedNodes(toggleSelection(selectedNodes, node.metadata.uid));
+      }}
+      onSelectAll={(event, isSelected) => {
+        console.log(props, 'props');
+        const nodes = props.Node.data;
+        let newSelection = selectedNodes;
+        nodes.forEach((node) => {
+          //newSelection = toggleSelection(newSelection, node.metadata.uid);
+          if(isSelected) {
+            newSelection = newSelection.add(node.metadata.uid);
+          } else {
+            newSelection = newSelection.delete(node.metadata.uid);
+          }
+        });
+        setSelectedNodes(newSelection);
+      }} />
+  );
 
   const submit = (event: React.FormEvent<EventTarget>) => {
     event.preventDefault();
@@ -238,6 +174,7 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
     k8sCreate(OCSServiceModel, props.sample, { ns: 'openshift-storage' })
       .then(() => {
         history.push(
+          // TODO this will cause URL string to be split across multiple lines
           `/k8s/ns/${props.namespace}/clusterserviceversions/${
             props.clusterServiceVersion.metadata.name
           }/${referenceForModel(OCSServiceModel)}/${props.sample.metadata.name}`,
@@ -247,76 +184,38 @@ export const CreateOCSServiceForm: React.FC<CreateOCSServiceFormProps> = React.m
       })
       .catch((err: Status) => setError(err.message));
   };
+
   return (
     <div className="ceph-ocs-install__form co-m-pane__body co-m-pane__form">
       <h1 className="co-m-pane__heading co-m-pane__heading--baseline">
         <div className="co-m-pane__name">{title}</div>
+        <div className="co-m-pane__heading-link">
+          <button className="btn btn-link">Edit YAML</button>
+        </div>
       </h1>
       <p className="co-m-pane__explanation">
         OCS runs as a cloud-native service for optimal integration with applications in need of
         storage, and handles the scenes such as provisioning and management.
       </p>
       <form className="co-m-pane__body-group" onSubmit={submit}>
-        <fieldset>
-          <legend className="co-legend co-required">Deployment Type</legend>
-          <div className="row">
-            <div className="col-sm-10">
-              <RadioInput
-                title="Create new nodes"
-                name="co-deployment-type"
-                id="co-deployment-type__ipi"
-                value="ipi"
-                onChange={updateMode}
-                checked={ipiInstallationMode}
-                desc="3 new nodes and an AWS bucket will be created to provide the OCS Service"
-              />
-            </div>
+        <div className="form-group co-create-route__name">
+          <label className="co-required">Select Nodes</label>
+          <div className="help-block" id="select-node-help">
+            A minimum of 3 nodes needs to be labeled with role=storage-node in order to create the OCS Service
           </div>
-          <div className="row">
-            <div className="col-sm-10">
-              <RadioInput
-                title="Use existing nodes"
-                name="co-deployment-type"
-                id="co-deployment-type__upi"
-                value="upi"
-                onChange={updateMode}
-                checked={!ipiInstallationMode}
-                desc="A minimum of 3 nodes needs to be labeled with role=storage-node in order to create the OCS Service"
-              />
-            </div>
-            <div className="col-sm-2">
-              <button type="button" className="btn btn-link" onClick={props.changeToYAMLMethod}>
-                Edit YAML
-              </button>
-            </div>
-          </div>
-          {!ipiInstallationMode && (
-            <div className="co-m-radio-desc">
-              <Alert
-                className="co-alert ceph-ocs-info__alert"
-                variant="info"
-                title="An AWS bucket will be created to provide the OCS Service."
-              />
-              <p className="co-legend co-required ceph-ocs-desc__legend">
-                Select at least 3 nodes you wish to use.
-              </p>
-            </div>
-          )}
-          {!ipiInstallationMode && (
-            <ListPage
-              kind={NodeModel.kind}
-              showTitle={false}
-              ListComponent={(nodeProps) => (
-                <NodeList
-                  {...nodeProps}
-                  data={nodeProps.data}
-                  customData={selectedNodeData}
-                  onSelect={onSelect}
-                />
-              )}
-            />
-          )}
-        </fieldset>
+          <Alert
+            className="co-alert ceph-ocs-info__alert"
+            variant="info"
+            title="An AWS bucket will be created to provide the OCS Service."
+          />
+          <p className="co-legend co-required ceph-ocs-desc__legend">
+            Select at least 3 nodes you wish to use.
+          </p>
+          <ListPage
+            kind={NodeModel.kind}
+            showTitle={false}
+            ListComponent={OCSNodeList} />
+        </div>
         <ButtonBar errorMessage={error} inProgress={inProgress}>
           <button type="submit" className="btn btn-primary" id="save-changes">
             Create
@@ -370,10 +269,10 @@ export const CreateOCSService: React.FC<CreateOCSServiceProps> = (props) => {
     );
   }, [props.match.params.appName, props.match.params.ns]);
 
-  const changeToYAMLMethod = (event) => {
-    event.preventDefault();
-    setMethod('yaml');
-  };
+  // const changeToYAMLMethod = (event) => {
+  //   event.preventDefault();
+  //   setMethod('yaml');
+  // };
   return (
     <React.Fragment>
       <div className="co-create-operand__header">
@@ -397,7 +296,6 @@ export const CreateOCSService: React.FC<CreateOCSServiceProps> = (props) => {
           operandModel={OCSServiceModel}
           sample={sample}
           clusterServiceVersion={clusterServiceVersion !== null && clusterServiceVersion.metadata}
-          changeToYAMLMethod={changeToYAMLMethod}
         />
       )) ||
         (method === 'yaml' && <CreateOCSServiceYAML match={props.match} sample={sample} />)}
@@ -419,7 +317,7 @@ type CreateOCSServiceFormProps = {
   sample?: K8sResourceKind;
   namespace: string;
   clusterServiceVersion: ClusterServiceVersionKind;
-  changeToYAMLMethod: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  //changeToYAMLMethod: (event: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
 type CreateOCSServiceYAMLProps = {
@@ -427,17 +325,18 @@ type CreateOCSServiceYAMLProps = {
   match: match<{ appName: string; ns: string; plural: K8sResourceKindReference }>;
 };
 
-type NodeTableRowProps = {
+type NodeRowProps = {
   obj: K8sResourceKind;
   index: number;
   key?: string;
   style: object;
-  customData?: any;
-  onSelect?: Function;
+  isSelected: boolean;
+  onSelect: (obj: K8sResourceKind) => void;
 };
 
 type NodeListProps = {
-  customData?: any;
-  onSelect?: Function;
-  data: Record<string, any>[];
+  data: K8sResourceKind[];
+  selectedNodes: ImmutableSet<K8sResourceKind>;
+  onSelectNode: (node: K8sResourceKind) => void;
+  onSelectAll: (nodes: K8sResourceKind[]) => void;
 };

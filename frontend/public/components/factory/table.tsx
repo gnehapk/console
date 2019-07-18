@@ -387,6 +387,7 @@ export const Table = connect<TablePropsFromState,TablePropsFromDispatch,TableOwn
     }
 
     _onSort(_event, index, direction){
+      _event.preventDefault();
       const sortColumn = this.state.columns[index - this._columnShift];
       this._applySort(sortColumn.sortField, sortColumn.sortFunc, direction, sortColumn.title);
       this.setState({
