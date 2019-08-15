@@ -21,6 +21,8 @@ export class RequestSizeInput extends React.Component<RequestSizeInputProps> {
     const { describedBy, name } = this.props;
     const inputName = `${name}Value`;
     const dropdownName = `${name}Unit`;
+    const disabled = this.props.disabled || false;
+
     return (
       <div className="form-group">
         <div className="pf-c-input-group">
@@ -33,6 +35,7 @@ export class RequestSizeInput extends React.Component<RequestSizeInputProps> {
             aria-describedby={describedBy}
             name={inputName}
             required={this.props.required}
+            value={this.props.defaultRequestSizeValue}
           />
           <Dropdown
             title={this.props.defaultRequestSizeUnit}
@@ -42,6 +45,7 @@ export class RequestSizeInput extends React.Component<RequestSizeInputProps> {
             items={this.props.dropdownUnits}
             onChange={this.onUnitChange}
             required={this.props.required}
+            disabled={disabled}
           />
         </div>
       </div>
@@ -58,4 +62,5 @@ export type RequestSizeInputProps = {
   defaultRequestSizeUnit: string;
   defaultRequestSizeValue: string;
   describedBy?: string;
+  disabled?: boolean;
 };

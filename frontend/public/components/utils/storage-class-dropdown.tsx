@@ -8,7 +8,7 @@ import { isDefaultClass } from '../storage-class';
 
 /* Component StorageClassDropdown - creates a dropdown list of storage classes */
 
-class StorageClassDropdown_ extends React.Component<StorageClassDropdownProps, StorageClassDropdownState> {
+export class StorageClassDropdown_ extends React.Component<StorageClassDropdownProps, StorageClassDropdownState> {
   readonly state: StorageClassDropdownState = {
     items: {},
     name: this.props.name,
@@ -137,9 +137,9 @@ class StorageClassDropdown_ extends React.Component<StorageClassDropdownProps, S
             id={id}
             menuClassName="dropdown-menu--text-wrap"
           />
-          <p className="help-block" id={describedBy}>
+          {describedBy && <p className="help-block" id={describedBy}>
             Storage class for the new claim.
-          </p>
+          </p>}
         </div>
       }
     </React.Fragment>;
