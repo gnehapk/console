@@ -1,11 +1,6 @@
 import { K8sResourceKind } from '@console/internal/module/k8s';
 
 export const minSelectedNode = 3;
-export const taintObj = {
-  key: 'node.ocs.openshift.io/storage',
-  value: 'true',
-  effect: 'NoSchedule',
-};
 
 export const ocsRequestData: K8sResourceKind = {
   apiVersion: 'ocs.openshift.io/v1alpha1',
