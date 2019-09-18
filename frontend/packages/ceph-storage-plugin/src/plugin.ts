@@ -67,8 +67,8 @@ const plugin: Plugin<ConsumedExtensions> = [
       path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${apiObjectRef}/~new`,
       loader: () =>
         import(
-          './components/ocs-install/create-ocs-service' /* webpackChunkName: "ceph-ocs-service" */
-        ).then((m) => m.CreateOCSService),
+          './components/ocs-install/create-form' /* webpackChunkName: "ceph-ocs-service" */
+        ).then((m) => m.CreateOCSServiceForm),
     },
   },
   // Ceph Storage Dashboard Left cards

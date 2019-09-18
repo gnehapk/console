@@ -147,7 +147,12 @@ const stateToProps = (obj, { data = [], filters = {}, staticFilters = [{}] }) =>
   };
 };
 
-const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProps }) => {
+const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
+  data,
+  loaded,
+  namespace,
+  clusterServiceVersion,
+}) => {
   const columns = getColumns();
   const [nodes, setNodes] = React.useState([]);
   const [error, setError] = React.useState('');
@@ -249,12 +254,10 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
     Promise.all(promises)
       .then(() => {
         history.push(
-          `/k8s/ns/${ocsProps.namespace}/clusterserviceversions/${
-            ocsProps.clusterServiceVersion.metadata.name
+          `/k8s/ns/${namespace}/clusterserviceversions/${
+            clusterServiceVersion.metadata.name
           }/${referenceForModel(OCSServiceModel)}/${ocsObj.metadata.name}`,
         );
-        setProgress(false);
-        setError('');
       })
       .catch((err) => {
         setProgress(false);
@@ -333,10 +336,6 @@ export const NodeList = connect<{}, CustomNodeTableProps>(stateToProps)(CustomNo
 type CustomNodeTableProps = {
   data: NodeKind[];
   loaded: boolean;
-  ocsProps: ocsPropsType;
-};
-
-type ocsPropsType = {
   namespace: string;
   clusterServiceVersion: K8sResourceKind;
 };
