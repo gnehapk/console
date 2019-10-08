@@ -10,8 +10,8 @@ import {
   TableGridBreakpoint,
 } from '@patternfly/react-table';
 import { getInfrastructurePlatform, getName, getNodeRoles } from '@console/shared';
+import { Alert, ActionGroup, Button } from '@patternfly/react-core';
 import { tableFilters } from '@console/internal/components/factory/table-filters';
-import { ActionGroup, Button } from '@patternfly/react-core';
 import { ButtonBar } from '@console/internal/components/utils/button-bar';
 import { history } from '@console/internal/components/utils/router';
 import {
@@ -98,6 +98,8 @@ const getRows = (nodes: NodeKind[]) => {
     .filter((node) => hasOCSTaint(node) || !hasTaints(node))
     .map((node) => {
       const roles = getNodeRoles(node).sort();
+      const cpuCapacity: string = _.get(node.status, 'capacity.cpu');
+      const allocatableMemory: string = _.get(node.status, 'allocatable.memory');
       const cells = [
         {
           title: <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />,
@@ -109,10 +111,10 @@ const getRows = (nodes: NodeKind[]) => {
           title: _.get(node.metadata.labels, 'failure-domain.beta.kubernetes.io/zone') || '-',
         },
         {
-          title: `${humanizeCpuCores(_.get(node.status, 'capacity.cpu')).string || '-'}`,
+          title: `${humanizeCpuCores(cpuCapacity).string || '-'}`,
         },
         {
-          title: `${getConvertedUnits(_.get(node.status, 'allocatable.memory'))}`,
+          title: `${getConvertedUnits(allocatableMemory)}`,
         },
       ];
       const obj = {
@@ -121,6 +123,8 @@ const getRows = (nodes: NodeKind[]) => {
         id: node.metadata.name,
         metadata: _.clone(node.metadata),
         spec: _.clone(node.spec),
+        cpuCapacity,
+        allocatableMemory,
       };
 
       return obj;
@@ -172,6 +176,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
   const [error, setError] = React.useState('');
   const [inProgress, setProgress] = React.useState(false);
   const [selectedNodesCnt, setSelectedNodesCnt] = React.useState(0);
+  const [nodesWarningMsg, setNodesWarningMsg] = React.useState('');
 
   let storageClass = '';
 
@@ -183,9 +188,39 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
     setNodes(preSelectedNodes);
   }
 
+  const hasMinimumCPU = (node: formattedNodeType): boolean => {
+    return convertToBaseValue(node.cpuCapacity) >= 16;
+  };
+
+  const hasMinimumMemory = (node: formattedNodeType): boolean => {
+    return convertToBaseValue(node.allocatableMemory) >= convertToBaseValue('64 Gi');
+  };
+
+  const validateNodes = React.useCallback((selectedNodes: formattedNodeType[]): void => {
+    let invalidNodesCount = 0;
+    let nodeName = '';
+    selectedNodes.forEach((node: formattedNodeType) => {
+      if (!hasMinimumCPU(node) || !hasMinimumMemory(node)) {
+        invalidNodesCount += 1;
+        nodeName = node.id;
+      }
+    });
+
+    if (invalidNodesCount > 0) {
+      const msg =
+        invalidNodesCount > 1
+          ? `${invalidNodesCount} of the selected nodes do not meet minimum requirements of 16 cores and 64 GiB Memory`
+          : `Node ${nodeName} does not meet minimum requirements of 16 cores and 64 GiB memory.`;
+      setNodesWarningMsg(msg);
+    } else {
+      setNodesWarningMsg('');
+    }
+  }, []);
+
   React.useEffect(() => {
-    const selectedNode = _.filter(unfilteredNodes, 'selected').length;
-    setSelectedNodesCnt(selectedNode);
+    const selectedNodes = _.filter(unfilteredNodes, 'selected');
+    setSelectedNodesCnt(selectedNodes.length);
+    validateNodes(selectedNodes);
 
     if (isFiltered || nodes.length !== data.length) {
       const unfilteredNodesByID = _.keyBy(unfilteredNodes, 'metadata.name');
@@ -194,7 +229,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
       });
       setNodes(filterData);
     }
-  }, [data, isFiltered, nodes, unfilteredNodes]);
+  }, [data, isFiltered, nodes, unfilteredNodes, validateNodes]);
 
   const onSelect = (
     event: React.MouseEvent<HTMLButtonElement>,
@@ -316,7 +351,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
 
   return (
     <>
-      <div className="node-list__max-height">
+      <div className="ceph-node-list__max-height">
         <Table
           aria-label="node list table"
           onSelect={onSelect}
@@ -332,6 +367,14 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
       <p className="control-label help-block" id="nodes-selected">
         {selectedNodesCnt} node(s) selected
       </p>
+      {nodesWarningMsg.length > 0 && (
+        <Alert
+          className="co-alert ceph-ocs-install__alert"
+          variant="warning"
+          title={nodesWarningMsg}
+          isInline
+        />
+      )}
       <ButtonBar errorMessage={error} inProgress={inProgress}>
         <ActionGroup className="pf-c-form">
           <Button
@@ -376,4 +419,6 @@ type formattedNodeType = {
   id: string;
   metadata: {};
   spec: {};
+  cpuCapacity: string;
+  allocatableMemory: string;
 };
