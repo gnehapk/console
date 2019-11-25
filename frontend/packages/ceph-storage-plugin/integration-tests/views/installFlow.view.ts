@@ -10,7 +10,7 @@ import { waitFor } from '../utils/helpers';
 const ocsOperator = $('.co-clusterserviceversion-logo__name__clusterserviceversion');
 export const ocsOperatorStatus = $('.co-clusterserviceversion-row__status');
 const installOperator = $('.pf-m-primary');
-const storageClusterLink = $('article:nth-child(10) a');
+export const storageClusterLink = $('article:nth-child(10) a');
 const searchInputOperatorHub = $('input[placeholder="Filter by keyword..."]');
 
 // Subscription Page
@@ -29,8 +29,8 @@ const ocsLink = (elem, catalogSource) =>
   $(`a[data-test="${elem}-${catalogSource}-openshift-marketplace"]`);
 
 // General Items
-const namespaceDropdown = $('.co-namespace-selector button');
-const openshiftStorageItem = $('#openshift-storage-link');
+export const namespaceDropdown = $('.co-namespace-selector button');
+export const openshiftStorageItem = $('#openshift-storage-link');
 
 // Namespace
 const labelValue = 'true';

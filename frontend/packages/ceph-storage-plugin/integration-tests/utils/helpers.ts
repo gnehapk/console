@@ -41,7 +41,12 @@ export const getPodData = (list, pattern: string) => {
 };
 
 export const getPodPhase = (pod) => {
+  console.log(pod.status.phase, 'phase');
   return pod.status.phase;
+};
+
+export const getPodRestartCount = (pod) => {
+  return pod.status.containerStatuses[0].restartCount;
 };
 
 export const getPodName = (pod) => {
@@ -49,6 +54,7 @@ export const getPodName = (pod) => {
 };
 
 export const testPodIsRunning = (podPhase: string) => expect(podPhase).toBe('Running');
+export const testPodIsSucceeded = (podPhase: string) => expect(podPhase).toBe('Succeeded');
 
 export const getDataFromRowAndCol = async (
   row: number,
@@ -83,4 +89,13 @@ export const verifyNodeLabels = (nodeName: string, label: string): boolean => {
   const labels = Object.keys(node.metadata.labels);
   if (labels.includes(label)) return true;
   return false;
+};
+
+export const isPodPresent = (pods, podName) => {
+  const pod = pods.items.find((pod) => pod.metadata.name === podName);
+  if(typeof pod === 'undefined') {
+    return '';
+  } else {
+    return pod;
+  }
 };
