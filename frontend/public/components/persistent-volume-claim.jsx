@@ -19,13 +19,46 @@ import {
 } from './utils';
 import { ResourceEventStream } from './events';
 import { PersistentVolumeClaimModel } from '../models';
+import * as plugins from '../plugins';
+import { isCephProvisioner } from '@console/shared/src/utils';
 
 const { common, ExpandPVC } = Kebab.factory;
-const menuActions = [
-  ExpandPVC,
-  ...Kebab.getExtensionsActionsForKind(PersistentVolumeClaimModel),
-  ...common,
-];
+
+const kind = 'PersistentVolumeClaim';
+// const menuActions = [
+//   ...Kebab.getExtensionsActionsForOCS(PersistentVolumeClaimModel),
+//   ExpandPVC,
+//   ...Kebab.getExtensionsActionsForKind(PersistentVolumeClaimModel),
+//   ...common,
+// ];
+
+const getActions = (selectedObj) => {
+  const actions = plugins.registry
+    .getOCSKebabActions()
+    .filter(
+      (action) =>
+        action.properties.kind === kind &&
+        isCephProvisioner(
+          _.get(selectedObj, [
+            'metadata',
+            'annotations',
+            'volume.beta.kubernetes.io/storage-provisioner',
+          ]),
+        ),
+    );
+
+  const pluginActions = actions.map((action) => (resourceKind, ocsObj) => ({
+    label: action.properties.label,
+    callback: action.properties.callback(resourceKind, ocsObj),
+  }));
+
+  return [
+    ...pluginActions,
+    ExpandPVC,
+    ...Kebab.getExtensionsActionsForKind(PersistentVolumeClaimModel),
+    ...common,
+  ];
+};
 
 const PVCStatus = ({ pvc }) => <Status status={pvc.status.phase} />;
 
@@ -78,8 +111,6 @@ const PVCTableHeader = () => {
 };
 PVCTableHeader.displayName = 'PVCTableHeader';
 
-const kind = 'PersistentVolumeClaim';
-
 const PVCTableRow = ({ obj, index, key, style }) => {
   return (
     <TableRow id={obj.metadata.uid} index={index} trKey={key} style={style}>
@@ -116,11 +147,12 @@ const PVCTableRow = ({ obj, index, key, style }) => {
         {_.get(obj, 'status.capacity.storage', '-')}
       </TableData>
       <TableData className={tableColumnClasses[5]}>
-        <ResourceKebab actions={menuActions} kind={kind} resource={obj} />
+        <ResourceKebab actions={getActions(obj)} kind={kind} resource={obj} />
       </TableData>
     </TableRow>
   );
 };
+
 PVCTableRow.displayName = 'PVCTableRow';
 
 const Details_ = ({ flags, obj: pvc }) => {
@@ -235,7 +267,8 @@ export const PersistentVolumeClaimsPage = (props) => {
 export const PersistentVolumeClaimsDetailsPage = (props) => (
   <DetailsPage
     {...props}
-    menuActions={menuActions}
+    //menuActions={menuActions}
+    menuActions={getActions(props.modelRef)}
     pages={[
       navFactory.details(Details),
       navFactory.editYaml(),

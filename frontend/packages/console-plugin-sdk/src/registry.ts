@@ -30,6 +30,7 @@ import {
   isProjectDashboardInventoryItem,
   isReduxReducer,
   isDashboardsOverviewInventoryItemReplacement,
+  isPersistentVolumeClaimAction,
 } from './typings';
 
 /**
@@ -136,8 +137,12 @@ export class ExtensionRegistry {
     return this.extensions.filter(isClusterServiceVersionAction);
   }
 
-  public getKebabActions() {
+  public getPersistentVolumeClaimActionActions() {
     return this.extensions.filter(isKebabActions);
+  }
+
+  public getOCSKebabActions() {
+    return this.extensions.filter(isPersistentVolumeClaimAction);
   }
 
   public getDevCatalogModels() {

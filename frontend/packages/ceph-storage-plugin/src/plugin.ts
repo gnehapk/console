@@ -1,18 +1,20 @@
 import * as _ from 'lodash';
 import {
+  ClusterServiceVersionAction,
   DashboardsCard,
   DashboardsTab,
   DashboardsOverviewHealthPrometheusSubsystem,
+  DashboardsOverviewUtilizationItem,
   ModelFeatureFlag,
   ModelDefinition,
+  PersistentVolumeClaimAction,
   Plugin,
   RoutePage,
-  ClusterServiceVersionAction,
-  DashboardsOverviewUtilizationItem,
 } from '@console/plugin-sdk';
 import { GridPosition } from '@console/shared/src/components/dashboard/DashboardGrid';
 import { OverviewQuery } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/queries';
 import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager/src/models';
+import { PersistentVolumeClaimModel } from '@console/internal/models/index';
 import { referenceForModel } from '@console/internal/module/k8s';
 import * as models from './models';
 import {
@@ -30,7 +32,8 @@ type ConsumedExtensions =
   | DashboardsOverviewHealthPrometheusSubsystem
   | DashboardsOverviewUtilizationItem
   | RoutePage
-  | ClusterServiceVersionAction;
+  | ClusterServiceVersionAction
+  | PersistentVolumeClaimAction;
 
 const CEPH_FLAG = 'CEPH';
 const apiObjectRef = referenceForModel(models.OCSServiceModel);
@@ -177,6 +180,29 @@ const plugin: Plugin<ConsumedExtensions> = [
           .catch((e) => {
             throw e;
           });
+      },
+    },
+  },
+  {
+    type: 'PersistentVolumeClaim/Action',
+    properties: {
+      kind: PersistentVolumeClaimModel.kind,
+      label: 'Clone',
+      apiGroup: models.OCSServiceModel.apiGroup,
+      callback: (kind, resource) => () => {
+        const clusterObject = { resource };
+        import(
+          './components/modals/clone-pvc-modal/clone-pvc-modal' /* webpackChunkName: "ceph-storage-clone-pvc-modal" */
+        )
+          .then((m) => m.default(clusterObject))
+          .catch((e) => {
+            throw e;
+          });
+      },
+      accessReview: {
+        group: PersistentVolumeClaimModel.apiGroup,
+        resource: PersistentVolumeClaimModel.plural,
+        verb: 'create',
       },
     },
   },
