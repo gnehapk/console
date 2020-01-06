@@ -207,14 +207,28 @@ kebabFactory.common = [
 
 export const getExtensionsKebabActionsForKind = (kind: K8sKind) => {
   const extensionActions = [];
-  _.forEach(plugins.registry.getKebabActions(), (getActions: any) => {
+  _.forEach(plugins.registry.getPersistentVolumeClaimActionActions(), (getActions: any) => {
     if (getActions) {
       _.forEach(getActions.properties.getKebabActionsForKind(kind), (kebabAction) => {
         extensionActions.push(kebabAction);
       });
     }
   });
+
   return extensionActions;
+};
+
+export const getExtensionsActionsForOCS = (model: K8sKind) => {
+  const actions = plugins.registry
+    .getOCSKebabActions()
+    .filter((action) => action.properties.kind === model.kind);
+
+  const pluginActions = actions.map((action) => (kind, ocsObj) => ({
+    label: action.properties.label,
+    callback: action.properties.callback(kind, ocsObj),
+  }));
+
+  return pluginActions;
 };
 
 export const ResourceKebab = connectToModel((props: ResourceKebabProps) => {
@@ -238,6 +252,7 @@ export const ResourceKebab = connectToModel((props: ResourceKebabProps) => {
 export class Kebab extends React.Component<any, { active: boolean }> {
   static factory: KebabFactory = kebabFactory;
   static getExtensionsActionsForKind = getExtensionsKebabActionsForKind;
+  static getExtensionsActionsForOCS = getExtensionsActionsForOCS;
 
   // public static columnClass: string = 'pf-c-table__action';
   public static columnClass: string = 'dropdown-kebab-pf pf-c-table__action';
