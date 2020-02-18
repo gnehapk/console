@@ -264,6 +264,7 @@ describe(OperandDetailsPage.displayName, () => {
       <OperandDetailsPage.WrappedComponent
         modelRef={referenceFor(testResourceInstance)}
         match={match}
+        kindObj={testModel}
       />,
     );
   });

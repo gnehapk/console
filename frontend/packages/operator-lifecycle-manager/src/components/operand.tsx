@@ -64,12 +64,19 @@ const csvName = () =>
     );
 
 const getActions = (selectedObj: any) => {
+  let group = '';
+
+  if (selectedObj.apiVersion.includes('/')) {
+    group = groupVersionFor(selectedObj.apiVersion).group;
+  } else {
+    group = selectedObj.apiGroup;
+  }
+
   const actions = plugins.registry
     .getClusterServiceVersionActions()
     .filter(
       (action) =>
-        action.properties.kind === selectedObj.kind &&
-        groupVersionFor(selectedObj.apiVersion).group === action.properties.apiGroup,
+        action.properties.kind === selectedObj.kind && group === action.properties.apiGroup,
     );
   const pluginActions = actions.map((action) => (kind, ocsObj) => ({
     label: action.properties.label,
@@ -588,7 +595,7 @@ export const OperandDetailsPage = connectToPlural((props: OperandDetailsPageProp
         prop: 'csv',
       },
     ]}
-    menuActions={getActions(props.modelRef)}
+    menuActions={getActions(props.kindObj)}
     breadcrumbsFor={() => [
       {
         name: 'Installed Operators',
@@ -668,6 +675,7 @@ export type OperandDetailsPageProps = {
     ns: string;
     appName: string;
   }>;
+  kindObj: K8sKind;
 };
 
 export type OperandesourceDetailsProps = {
