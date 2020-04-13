@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import { Alert } from '@console/internal/components/monitoring';
 import { K8sResourceKind } from '@console/internal/module/k8s';
-import { FirehoseResult } from '@console/internal/components/utils';
+import { FirehoseResult, convertToBaseValue } from '@console/internal/components/utils';
 import { cephStorageProvisioners } from '@console/shared/src/utils';
 import { OCS_OPERATOR } from '../constants';
 
@@ -59,3 +59,16 @@ export const getOCSVersion = (items: FirehoseResult): string => {
   );
   return _.get(operator, 'status.installedCSV');
 };
+
+export const calcPVsCapacity = (pvs: K8sResourceKind[]): number =>
+  _.reduce(
+    pvs,
+    (sum, pv) => {
+      const storage = Number(convertToBaseValue(pv.spec?.capacity?.storage) ?? '0');
+      return sum + storage;
+    },
+    0,
+  );
+
+export const getSCAvailablePVs = (pvsData: K8sResourceKind[], sc: string): K8sResourceKind[] =>
+  pvsData.filter((pv) => getPVStorageClass(pv) === sc && pv.status?.phase === 'Available');

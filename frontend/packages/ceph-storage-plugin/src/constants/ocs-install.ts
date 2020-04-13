@@ -51,3 +51,8 @@ export const infraProvisionerMap = {
   aws: 'kubernetes.io/aws-ebs',
   vsphere: 'kubernetes.io/vsphere-volume',
 };
+
+export enum pvsCapacityState {
+  LOADING = 'Loading',
+  NOT_AVAILABLE = 'Not Available',
+}

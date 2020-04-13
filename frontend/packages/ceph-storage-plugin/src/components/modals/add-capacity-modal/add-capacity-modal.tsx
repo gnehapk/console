@@ -13,16 +13,19 @@ import {
   ModalTitle,
 } from '@console/internal/components/factory';
 import { usePrometheusPoll } from '@console/internal/components/graphs/prometheus-poll-hook';
-import { k8sPatch } from '@console/internal/module/k8s';
+import { k8sPatch, StorageClassResourceKind, K8sResourceKind } from '@console/internal/module/k8s';
 import { PrometheusEndpoint } from '@console/internal/components/graphs/helpers';
 import { getName } from '@console/shared';
 import { OCSServiceModel } from '../../../models';
 import { OSD_CAPACITY_SIZES } from '../../../utils/osd-size-dropdown';
-import { CEPH_STORAGE_NAMESPACE } from '../../../constants';
-import { labelTooltip } from '../../../constants/ocs-install';
+import { CEPH_STORAGE_NAMESPACE, NO_PROVISIONER } from '../../../constants';
+import { labelTooltip, pvsCapacityState } from '../../../constants/ocs-install';
 import { CAPACITY_USAGE_QUERIES, StorageDashboardQuery } from '../../../constants/queries';
 import { OCSStorageClassDropdown } from '../storage-class-dropdown';
 import './_add-capacity-modal.scss';
+import { calcPVsCapacity, getSCAvailablePVs } from '../../../selectors';
+import { useK8sWatchResource } from '@console/internal/components/utils/k8s-watch-hook';
+import { pvResource } from '../../../constants/resources';
 
 const getProvisionedCapacity = (value: number) => (value % 1 ? (value * 3).toFixed(2) : value * 3);
 
@@ -34,9 +37,12 @@ export const AddCapacityModal = withHandlePromise((props: AddCapacityModalProps)
     namespace: CEPH_STORAGE_NAMESPACE,
     query: CAPACITY_USAGE_QUERIES[StorageDashboardQuery.CEPH_CAPACITY_USED],
   });
-  const [storageClass, setStorageClass] = React.useState('');
+  const [storageClass, setStorageClass] = React.useState<StorageClassResourceKind>(null);
   const [inProgress, setProgress] = React.useState(false);
   const [errorMessage, setError] = React.useState('');
+  const [pvsAvailableCapacity, setPVsAvailableCapacity] = React.useState<React.ReactText>(
+    pvsCapacityState.LOADING,
+  );
 
   const osdSizeWithUnit = _.get(
     ocsConfig,
@@ -47,6 +53,8 @@ export const AddCapacityModal = withHandlePromise((props: AddCapacityModalProps)
 
   const osdSizeWithoutUnit = OSD_CAPACITY_SIZES[osdSizeWithUnit]?.size;
   const provisionedCapacity = getProvisionedCapacity(osdSizeWithoutUnit);
+
+  const pvResult = useK8sWatchResource<K8sResourceKind[]>(pvResource);
 
   let currentCapacity: React.ReactNode;
 
@@ -65,6 +73,23 @@ export const AddCapacityModal = withHandlePromise((props: AddCapacityModalProps)
     );
   }
 
+  const handleStorageClass = (sc: StorageClassResourceKind) => {
+    setStorageClass(sc);
+    const provisioner: string = sc?.provisioner;
+
+    if (provisioner === NO_PROVISIONER) {
+      const [pvsData, pvsLoaded, pvsLoadError] = pvResult;
+
+      if (pvsLoaded && pvsData) {
+        const pvs = getSCAvailablePVs(pvsData, getName(sc));
+        const availableCapacity = humanizeBinaryBytes(calcPVsCapacity(pvs)).string;
+        setPVsAvailableCapacity(availableCapacity);
+      } else if (pvsLoadError || pvsData.length) {
+        setPVsAvailableCapacity(pvsCapacityState.NOT_AVAILABLE);
+      }
+    }
+  };
+
   const submit = (event: React.FormEvent<EventTarget>) => {
     event.preventDefault();
     setProgress(true);
@@ -73,16 +98,17 @@ export const AddCapacityModal = withHandlePromise((props: AddCapacityModalProps)
       path: `/spec/storageDeviceSets/0/count`,
       value: presentCount + 1,
     };
-    props
-      .handlePromise(k8sPatch(OCSServiceModel, ocsConfig, [patch]))
-      .then(() => {
-        setProgress(false);
-        close();
-      })
-      .catch((error) => {
-        setError(error);
-        setProgress(false);
-      });
+    console.log(patch, 'patch');
+    // props
+    //   .handlePromise(k8sPatch(OCSServiceModel, ocsConfig, [patch]))
+    //   .then(() => {
+    //     setProgress(false);
+    //     close();
+    //   })
+    //   .catch((error) => {
+    //     setError(error);
+    //     setProgress(false);
+    //   });
   };
 
   return (
@@ -91,32 +117,53 @@ export const AddCapacityModal = withHandlePromise((props: AddCapacityModalProps)
       <ModalBody>
         Adding capacity for <strong>{getName(ocsConfig)}</strong>, may increase your cloud expenses.
         <div className="ceph-add-capacity__modal">
-          <div className="ceph-add-capacity_sc-dropdown">
-            <OCSStorageClassDropdown onChange={setStorageClass} defaultClass={storageClass} />
+          <div
+            className={classNames(
+              'ceph-add-capacity_sc-dropdown',
+              storageClass?.provisioner === NO_PROVISIONER
+                ? ''
+                : 'ceph-add-capacity_sc-dropdown__margin',
+            )}
+          >
+            <OCSStorageClassDropdown onChange={handleStorageClass} />
           </div>
-          <label className="control-label" htmlFor="requestSize">
-            Raw Capacity
-            <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
-          </label>
-          <div className="ceph-add-capacity__form">
-            <input
-              className={classNames('pf-c-form-control', 'ceph-add-capacity__input')}
-              type="number"
-              name="requestSize"
-              value={osdSizeWithoutUnit}
-              required
-              disabled
-            />
-            <div className="ceph-add-capacity__input--info-text">
-              x 3 replicas = <strong>{provisionedCapacity} TiB</strong>
+          {storageClass?.provisioner === NO_PROVISIONER ? (
+            <div
+              className="ceph-add-capacity__current-capacity"
+              data-test-id="ceph-add-capacity-pvs-available-capacity"
+            >
+              <div className="text-secondary ceph-add-capacity__current-capacity--text">
+                <strong>Available capacity:</strong>
+              </div>
+              {`${pvsAvailableCapacity} / ${ocsConfig.spec.storageDeviceSets[0].replica} replicas`}
             </div>
-          </div>
-          <div className="ceph-add-capacity__current-capacity">
-            <div className="text-secondary ceph-add-capacity__current-capacity--text">
-              <strong>Currently Used:</strong>
+          ) : (
+            <div data-test-id="ceph-add-capacity-raw-capacity">
+              <label className="control-label" htmlFor="requestSize">
+                Raw Capacity
+                <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
+              </label>
+              <div className="ceph-add-capacity__form">
+                <input
+                  className={classNames('pf-c-form-control', 'ceph-add-capacity__input')}
+                  type="number"
+                  name="requestSize"
+                  value={osdSizeWithoutUnit}
+                  required
+                  disabled
+                />
+                <div className="ceph-add-capacity__input--info-text">
+                  x 3 replicas = <strong>{provisionedCapacity} TiB</strong>
+                </div>
+              </div>
+              <div className="ceph-add-capacity__current-capacity">
+                <div className="text-secondary ceph-add-capacity__current-capacity--text">
+                  <strong>Currently Used:</strong>
+                </div>
+                {currentCapacity}
+              </div>
             </div>
-            {currentCapacity}
-          </div>
+          )}
         </div>
       </ModalBody>
       <ModalSubmitFooter
