@@ -1,9 +1,10 @@
 import * as _ from 'lodash';
 import { Alert } from '@console/internal/components/monitoring';
-import { K8sResourceKind } from '@console/internal/module/k8s';
-import { FirehoseResult } from '@console/internal/components/utils';
+import { K8sResourceKind, k8sList } from '@console/internal/module/k8s';
+import { FirehoseResult, convertToBaseValue } from '@console/internal/components/utils';
 import { cephStorageProvisioners } from '@console/shared/src/utils';
 import { OCS_OPERATOR } from '../constants';
+import { PersistentVolumeModel } from '@console/internal/models';
 
 export const cephStorageLabel = 'cluster.ocs.openshift.io/openshift-storage';
 
@@ -59,3 +60,23 @@ export const getOCSVersion = (items: FirehoseResult): string => {
   );
   return _.get(operator, 'status.installedCSV');
 };
+
+export const getSCAvailablePVs = (sc: string) =>
+  k8sList(PersistentVolumeModel)
+    .catch(() => [])
+    .then((pvsData: K8sResourceKind[]) => {
+      return pvsData.filter(
+        (pv) =>
+          _.isEqual(_.get(pv, 'spec.storageClassName'), sc) &&
+          _.isEqual(_.get(pv, 'status.phase'), 'Available'),
+      );
+    });
+
+export const calcPVsCapacity = (pvs: K8sResourceKind[]) =>
+  _.reduce(
+    pvs,
+    function(sum, pv) {
+      return sum + Number(convertToBaseValue(_.get(pv, 'spec.capacity.storage', '0')));
+    },
+    0,
+  );

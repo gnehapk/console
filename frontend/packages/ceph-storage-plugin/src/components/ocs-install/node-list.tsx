@@ -32,6 +32,7 @@ import {
   K8sResourceKind,
   NodeKind,
   referenceForModel,
+  StorageClassResourceKind,
   Taint,
 } from '@console/internal/module/k8s';
 import { NodeModel } from '@console/internal/models';
@@ -41,11 +42,16 @@ import {
   labelTooltip,
   ocsRequestData,
   ocsTaint,
+  noProvisioner,
 } from '../../constants/ocs-install';
 import './ocs-install.scss';
 import { OSDSizeDropdown } from '../../utils/osd-size-dropdown';
 import { hasLabel } from '../../../../console-shared/src/selectors/common';
 import { OCSStorageClassDropdown } from '../modals/storage-class-dropdown';
+import '../modals/add-capacity-modal/_add-capacity-modal.scss';
+import { calcPVsCapacity, getSCAvailablePVs } from '../../selectors';
+import { pvResource } from '../../constants/resources';
+import { useK8sWatchResource } from '@console/internal/components/utils/k8s-watch-hook';
 
 const ocsLabel = 'cluster.ocs.openshift.io/openshift-storage';
 
@@ -182,6 +188,8 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
   const [inProgress, setProgress] = React.useState(false);
   const [selectedNodesCnt, setSelectedNodesCnt] = React.useState(0);
   const [storageClass, setStorageClass] = React.useState(null);
+  const [isNoProvisionerSC, setNoProvisionerSC] = React.useState(false);
+  const [pvsAvailableCapacity, setPVsAvailableCapacity] = React.useState('Loading');
 
   // pre-selection of nodes
   if (loaded && !unfilteredNodes.length) {
@@ -205,6 +213,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
       setNodes(filterData);
     }
   }, [data, isFiltered, nodes.length, unfilteredNodes]);
+
   const onSelect = (
     event: React.MouseEvent<HTMLButtonElement>,
     isSelected: boolean,
@@ -250,54 +259,30 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
     );
   };
 
-  // tainting the selected nodes
-  // const makeTaintNodesRequest = (selectedNode: NodeKind[]): Promise<NodeKind>[] => {
-  //   const taintNodesRequest = selectedNode
-  //     .filter((node: NodeKind) => {
-  //       const roles = getNodeRoles(node);
-  //       // don't taint master nodes as its already tainted
-  //       return roles.indexOf('master') === -1;
-  //     })
-  //     .map((node) => {
-  //       const taints = node.spec && node.spec.taints ? [...node.spec.taints, taintObj] : [taintObj];
-  //       const patch = [
-  //         {
-  //           value: taints,
-  //           path: '/spec/taints',
-  //           op: node.spec.taints ? 'replace' : 'add',
-  //         },
-  //       ];
-  //       return k8sPatch(NodeModel, node, patch);
-  //     });
-
-  //   return taintNodesRequest;
-  // };
-
   const makeOCSRequest = () => {
     const selectedData: NodeKind[] = _.filter(nodes, 'selected');
-    const promises = makeLabelNodesRequest(selectedData);
-    // intentionally keeping the taint logic as its required in 4.3 and will be handled with checkbox selection
-    // promises.push(...makeTaintNodesRequest(selectedData));
+    //const promises = makeLabelNodesRequest(selectedData);
 
     const ocsObj = _.cloneDeep(ocsRequestData);
-    ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = storageClass;
+    ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = getName(storageClass);
     ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.resources.requests.storage = osdSize;
 
-    Promise.all(promises)
-      .then(() => {
-        return k8sCreate(OCSServiceModel, ocsObj);
-      })
-      .then(() => {
-        history.push(
-          `/k8s/ns/${ocsProps.namespace}/clusterserviceversions/${
-            ocsProps.clusterServiceVersion.metadata.name
-          }/${referenceForModel(OCSServiceModel)}/${ocsObj.metadata.name}`,
-        );
-      })
-      .catch((err) => {
-        setProgress(false);
-        setError(err.message);
-      });
+    console.log(ocsObj);
+    // Promise.all(promises)
+    //   .then(() => {
+    //     return k8sCreate(OCSServiceModel, ocsObj);
+    //   })
+    //   .then(() => {
+    //     history.push(
+    //       `/k8s/ns/${ocsProps.namespace}/clusterserviceversions/${
+    //         ocsProps.clusterServiceVersion.metadata.name
+    //       }/${referenceForModel(OCSServiceModel)}/${ocsObj.metadata.name}`,
+    //     );
+    //   })
+    //   .catch((err) => {
+    //     setProgress(false);
+    //     setError(err.message);
+    //   });
   };
 
   const submit = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -305,6 +290,34 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
     setProgress(true);
     setError('');
     makeOCSRequest();
+  };
+
+  const pvResult = useK8sWatchResource<K8sResourceKind[]>(pvResource);
+  console.log(pvResult, 'pvResult');
+
+  const handleStorageClass = (sc: StorageClassResourceKind) => {
+    //const name = getName(sc);
+    setStorageClass(sc);
+    const provisioner: string = sc?.provisioner;
+
+    if (provisioner === noProvisioner) {
+      //setNoProvisionerSC(true);
+      setOsdSize('1'); // for baremetal environment, set requested capacity as 1 Byte
+
+      const [data, loaded, loadError] = pvResult;
+
+      if(loaded && data) {
+        const pvs = getSCAvailablePVs(data, getName(sc));
+        console.log(pvs, 'pvs');
+        setPVsAvailableCapacity(humanizeBinaryBytes(calcPVsCapacity(pvs)).string);
+      } else if (loadError || data.length) {
+        console.log('Not Available');
+      }
+        
+    } else {
+      //setNoProvisionerSC(false);
+      setOsdSize('2Ti');
+    }
   };
 
   return (
@@ -326,19 +339,29 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
         {selectedNodesCnt} node(s) selected
       </p>
       <div className="ceph-ocs-install__ocs-service-capacity--dropdown">
-        <OCSStorageClassDropdown onChange={setStorageClass} />
+        <OCSStorageClassDropdown onChange={handleStorageClass} />
       </div>
-      <div className="ceph-ocs-install__ocs-service-capacity">
-        <label className="control-label" htmlFor="ocs-service-stoargeclass">
-          OCS Service Capacity
-          <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
-        </label>
-        <OSDSizeDropdown
-          className="ceph-ocs-install__ocs-service-capacity--dropdown"
-          selectedKey={osdSize}
-          onChange={setOsdSize}
-        />
-      </div>
+      {storageClass?.provisioner === noProvisioner && (
+        <div className="ceph-add-capacity__current-capacity">
+          <div className="text-secondary ceph-add-capacity__current-capacity--text">
+            <strong>Available capacity:</strong>
+          </div>
+          {`${pvsAvailableCapacity} / ${ocsRequestData.spec.storageDeviceSets[0].replica} replicas`}
+        </div>
+      )}
+      {storageClass?.provisioner !== noProvisioner && (
+        <div className="ceph-ocs-install__ocs-service-capacity">
+          <label className="control-label" htmlFor="ocs-service-stoargeclass">
+            OCS Service Capacity
+            <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
+          </label>
+          <OSDSizeDropdown
+            className="ceph-ocs-install__ocs-service-capacity--dropdown"
+            selectedKey={osdSize}
+            onChange={setOsdSize}
+          />
+        </div>
+      )}
       <ButtonBar errorMessage={error} inProgress={inProgress}>
         <ActionGroup className="pf-c-form">
           <Button
