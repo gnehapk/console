@@ -32,20 +32,24 @@ import {
   K8sResourceKind,
   NodeKind,
   referenceForModel,
+  StorageClassResourceKind,
   Taint,
 } from '@console/internal/module/k8s';
 import { NodeModel } from '@console/internal/models';
-import { OCSServiceModel } from '../../models';
+import { OSDSizeDropdown } from '../../utils/osd-size-dropdown';
+import { hasLabel } from '../../../../console-shared/src/selectors/common';
+import { OCSStorageClassDropdown } from '../modals/storage-class-dropdown';
+import { NO_PROVISIONER } from '../../constants';
 import {
   minSelectedNode,
   labelTooltip,
   ocsRequestData,
   ocsTaint,
+  defaultRequestSize,
 } from '../../constants/ocs-install';
+import { OCSServiceModel } from '../../models';
+import { PVsAvailableCapacity } from './pvs-available-capacity';
 import './ocs-install.scss';
-import { OSDSizeDropdown } from '../../utils/osd-size-dropdown';
-import { hasLabel } from '../../../../console-shared/src/selectors/common';
-import { OCSStorageClassDropdown } from '../modals/storage-class-dropdown';
 
 const ocsLabel = 'cluster.ocs.openshift.io/openshift-storage';
 
@@ -175,7 +179,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
   ocsProps,
 }) => {
   const columns = getColumns();
-  const [osdSize, setOsdSize] = React.useState('2Ti');
+  const [osdSize, setOsdSize] = React.useState(defaultRequestSize.NON_BAREMETAL);
   const [nodes, setNodes] = React.useState([]);
   const [unfilteredNodes, setUnfilteredNodes] = React.useState([]);
   const [error, setError] = React.useState('');
@@ -205,6 +209,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
       setNodes(filterData);
     }
   }, [data, isFiltered, nodes.length, unfilteredNodes]);
+
   const onSelect = (
     event: React.MouseEvent<HTMLButtonElement>,
     isSelected: boolean,
@@ -250,38 +255,20 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
     );
   };
 
-  // tainting the selected nodes
-  // const makeTaintNodesRequest = (selectedNode: NodeKind[]): Promise<NodeKind>[] => {
-  //   const taintNodesRequest = selectedNode
-  //     .filter((node: NodeKind) => {
-  //       const roles = getNodeRoles(node);
-  //       // don't taint master nodes as its already tainted
-  //       return roles.indexOf('master') === -1;
-  //     })
-  //     .map((node) => {
-  //       const taints = node.spec && node.spec.taints ? [...node.spec.taints, taintObj] : [taintObj];
-  //       const patch = [
-  //         {
-  //           value: taints,
-  //           path: '/spec/taints',
-  //           op: node.spec.taints ? 'replace' : 'add',
-  //         },
-  //       ];
-  //       return k8sPatch(NodeModel, node, patch);
-  //     });
-
-  //   return taintNodesRequest;
-  // };
-
   const makeOCSRequest = () => {
     const selectedData: NodeKind[] = _.filter(nodes, 'selected');
     const promises = makeLabelNodesRequest(selectedData);
-    // intentionally keeping the taint logic as its required in 4.3 and will be handled with checkbox selection
-    // promises.push(...makeTaintNodesRequest(selectedData));
 
     const ocsObj = _.cloneDeep(ocsRequestData);
-    ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = storageClass;
+
+    ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = getName(storageClass);
     ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.resources.requests.storage = osdSize;
+
+    // for baremetal infra
+    if (storageClass.provisioner === NO_PROVISIONER) {
+      ocsObj.spec.monDataDirHostPath = '/var/lib/rook';
+      ocsObj.spec.storageDeviceSets[0].portable = false;
+    }
 
     Promise.all(promises)
       .then(() => {
@@ -307,6 +294,17 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
     makeOCSRequest();
   };
 
+  const handleStorageClass = (sc: StorageClassResourceKind) => {
+    setStorageClass(sc);
+    const provisioner: string = sc?.provisioner; // required if user selects 'No Default Storage Class' option
+
+    if (provisioner === NO_PROVISIONER) {
+      setOsdSize(defaultRequestSize.BAREMETAL); // for baremetal environment, set requested capacity as 1 Byte
+    } else {
+      setOsdSize(defaultRequestSize.NON_BAREMETAL);
+    }
+  };
+
   return (
     <>
       <div className="ceph-node-list__max-height">
@@ -326,19 +324,30 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
         {selectedNodesCnt} node(s) selected
       </p>
       <div className="ceph-ocs-install__ocs-service-capacity--dropdown">
-        <OCSStorageClassDropdown onChange={setStorageClass} />
+        <OCSStorageClassDropdown onChange={handleStorageClass} />
       </div>
-      <div className="ceph-ocs-install__ocs-service-capacity">
-        <label className="control-label" htmlFor="ocs-service-stoargeclass">
-          OCS Service Capacity
-          <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
-        </label>
-        <OSDSizeDropdown
-          className="ceph-ocs-install__ocs-service-capacity--dropdown"
-          selectedKey={osdSize}
-          onChange={setOsdSize}
+      {storageClass?.provisioner === NO_PROVISIONER ? (
+        <PVsAvailableCapacity
+          replica={ocsRequestData.spec.storageDeviceSets[0].replica}
+          data-test-id="ceph-ocs-install-pvs-available-capacity"
+          sc={storageClass}
         />
-      </div>
+      ) : (
+        <div
+          className="ceph-ocs-install__ocs-service-capacity"
+          data-test-id="ceph-ocs-install-ocs-service-capacity"
+        >
+          <label className="control-label" htmlFor="ocs-service-stoargeclass">
+            OCS Service Capacity
+            <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
+          </label>
+          <OSDSizeDropdown
+            className="ceph-ocs-install__ocs-service-capacity--dropdown"
+            selectedKey={osdSize}
+            onChange={setOsdSize}
+          />
+        </div>
+      )}
       <ButtonBar errorMessage={error} inProgress={inProgress}>
         <ActionGroup className="pf-c-form">
           <Button
