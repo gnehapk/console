@@ -7,12 +7,10 @@ import { PodKind } from '@console/internal/module/k8s';
 import { getName } from '@console/shared/src/selectors/common';
 import {
   confirmButton,
-  clickKebabAction,
-  goToInstalledOperators,
-  ocsOp,
   storageClusterRow,
+  getSCOption,
   verifyFields,
-  getStorageClusterLink,
+  selectSCDropdown,
 } from '../../views/add-capacity.view';
 import {
   CLUSTER_STATUS,
@@ -108,13 +106,12 @@ if (clusterStatus && cephHealth) {
 
       expansionObjects.previousOSDIds = getIds(expansionObjects.previousOSDTree.nodes, OSD);
 
-      await goToInstalledOperators();
-      await click(ocsOp);
-      const storageClusterLink = await getStorageClusterLink();
-      await click(storageClusterLink);
-
-      await clickKebabAction(uid, 'Add Capacity');
-      await verifyFields();
+      await selectSCDropdown(uid);
+      const defaultSC = execSync(`kubectl get storageclasses | grep -Po '\\w+(?=.*default)'`)
+        .toString()
+        .trim();
+      await click(getSCOption(defaultSC));
+      verifyFields();
       await click(confirmButton);
 
       const statusCol = storageClusterRow(uid).$('td:nth-child(3)');
@@ -240,16 +237,16 @@ type PodType = {
   items: PodKind[];
 };
 
-type ExpansionObjectsType = {
+export type ExpansionObjectsType = {
   clusterJSON: {};
   previousCnt: number;
   updatedCnt: number;
   updatedClusterJSON: {};
-  previousPods: PodType;
-  updatedPods: PodType;
-  previousOSDTree: { nodes: NodeType[] };
-  updatedOSDTree: { nodes: NodeType[] };
-  formattedOSDTree: FormattedOsdTreeType;
-  previousOSDIds: number[];
-  newOSDIds: number[];
+  previousPods?: PodType;
+  updatedPods?: PodType;
+  previousOSDTree?: { nodes: NodeType[] };
+  updatedOSDTree?: { nodes: NodeType[] };
+  formattedOSDTree?: FormattedOsdTreeType;
+  previousOSDIds?: number[];
+  newOSDIds?: number[];
 };

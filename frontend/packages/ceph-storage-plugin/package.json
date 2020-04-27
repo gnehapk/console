@@ -22,7 +22,7 @@
       "ceph-storage": [
         "integration-tests/**/*.scenario.ts"
       ],
-      "e2e": [
+      "e2e-ceph": [
         "integration-tests/tests/ocp-tests/*.scenario.ts"
       ]
     }
