@@ -3,7 +3,7 @@ import * as crudView from '@console/internal-integration-tests/views/crud.view';
 import * as sideNavView from '@console/internal-integration-tests/views/sidenav.view';
 import { click, getOperatorHubCardIndex } from '@console/shared/src/test-utils/utils';
 import { CAPACITY_UNIT, CAPACITY_VALUE, OCS_OP } from '../utils/consts';
-import { namespaceDropdown, openshiftStorageItem } from './installFlow.view';
+import { currentSelectors } from './installFlow.view';
 
 export const ocsOp = $(`a[data-test-operator-row='${OCS_OP}']`);
 export const getStorageClusterLink = async () => {
@@ -14,31 +14,42 @@ export const getStorageClusterLink = async () => {
 export const actionForLabel = (label: string) => $(`button[data-test-action='${label}']`);
 export const confirmButton = $('#confirm-action');
 export const storageClusterRow = (uid) => $(`tr[data-id='${uid}']`);
+export const getSCOption = (scName: string) => $(`a[id='${scName}-link']`);
+export const capacityValueInput = $('input.ceph-add-capacity__input');
+export const totalRequestedcapacity = $('div.ceph-add-capacity__input--info-text strong');
 
-const capacityValueInput = $('input.add-capacity-modal__input--width');
-const capacityUnitButton = $('button[data-test-id="dropdown-button"] .pf-c-dropdown__toggle-text');
-export const requestSizeValueInput = $('input[name="requestSizeValue"]');
+const scDropdown = $('button[id="ceph-sc-dropdown"]');
+const storageClusterNav = $('a[data-test-id="horizontal-link-Storage Cluster"]');
 
 export const verifyFields = async () => {
   await browser.wait(until.presenceOf(capacityValueInput));
-  await browser.wait(until.presenceOf(capacityUnitButton));
-  expect(capacityUnitButton.getText()).toEqual(CAPACITY_UNIT);
+  await browser.wait(until.presenceOf(totalRequestedcapacity));
   expect(capacityValueInput.getAttribute('value')).toBe(CAPACITY_VALUE);
+  expect(totalRequestedcapacity.getText()).toEqual(`6 ${CAPACITY_UNIT}`);
 };
 
-export const clickKebabAction = async (uid: string, actionLabel: string) => {
+const clickKebabAction = async (uid: string, actionLabel: string) => {
   await browser.wait(until.presenceOf(storageClusterRow(uid)));
   const kebabMenu = storageClusterRow(uid).$('button[data-test-id="kebab-button"]');
   await click(kebabMenu);
-  const lbl = actionForLabel(actionLabel);
-  await click(lbl);
+  await browser.wait(until.presenceOf(actionForLabel(actionLabel)));
+  await click(actionForLabel(actionLabel));
 };
 
 export const goToInstalledOperators = async () => {
   await browser.wait(until.and(crudView.untilNoLoadersPresent));
   await sideNavView.clickNavLink(['Operators', 'Installed Operators']);
   await browser.wait(until.and(crudView.untilNoLoadersPresent));
-  await click(namespaceDropdown);
-  await click(openshiftStorageItem);
+  await click(currentSelectors.namespaceDropdown);
+  await click(currentSelectors.openshiftStorageItem);
   await browser.wait(until.and(crudView.untilNoLoadersPresent));
+};
+
+export const selectSCDropdown = async (uid: string) => {
+  await goToInstalledOperators();
+  await click(ocsOp);
+  await browser.wait(until.presenceOf(storageClusterNav));
+  await click(storageClusterNav);
+  await clickKebabAction(uid, 'Add Capacity');
+  await click(scDropdown);
 };
