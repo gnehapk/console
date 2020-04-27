@@ -2,80 +2,44 @@ import { execSync } from 'child_process';
 import * as _ from 'lodash';
 import { browser, ExpectedConditions as until } from 'protractor';
 import { click } from '@console/shared/src/test-utils/utils';
-import { isNodeReady } from '@console/shared/src/selectors/node';
-import { PodKind } from '@console/internal/module/k8s';
 import { getName } from '@console/shared/src/selectors/common';
 import {
   confirmButton,
   clickKebabAction,
   goToInstalledOperators,
   ocsOp,
-  storageClusterRow,
+  storageClusterNav,
+  scDropdown,
+  getSCOption,
   verifyFields,
-  getStorageClusterLink,
 } from '../../views/add-capacity.view';
-import {
-  CLUSTER_STATUS,
-  EXPAND_WAIT,
-  KIND,
-  NS,
-  OSD,
-  SECOND,
-  MINUTE,
-} from '../../utils/consts';
-import {
-  createOSDTreeMap,
-  getIds,
-  getNewOSDIds,
-  NodeType,
-  FormattedOsdTreeType,
-} from '../../utils/helpers';
+import { KIND, NS, SECOND, STORAGE_CLUSTER_NAME } from '../../utils/consts';
+import { ExpansionObjectsType } from '../2-tests/add-capacity.scenario';
 
 const storageCluster = JSON.parse(execSync(`kubectl get -o json -n ${NS} ${KIND}`).toString());
-const cephValue = JSON.parse(execSync(`kubectl get cephCluster -n ${NS} -o json`).toString());
-const clusterStatus = storageCluster.items[0];
-const cephHealth = cephValue.items[0];
+let defaultSC = '';
 
 const expansionObjects: ExpansionObjectsType = {
   clusterJSON: {},
   previousCnt: 0,
   updatedCnt: 0,
   updatedClusterJSON: {},
-  previousPods: { items: [] },
-  updatedPods: { items: [] },
-  previousOSDTree: { nodes: [] },
-  updatedOSDTree: { nodes: [] },
-  formattedOSDTree: {},
-  previousOSDIds: [],
-  newOSDIds: [],
 };
 
-// describe('Check availability of ocs cluster', () => {
-//   if (clusterStatus) {
-//     it('Should check if the ocs cluster is Ready for expansion', () => {
-//       expect(_.get(clusterStatus, 'status.phase')).toBe(CLUSTER_STATUS.READY);
-//     });
-//   } else {
-//     it('Should state that ocs cluster is not ready for expansion', () => {
-//       expect(clusterStatus).toBeUndefined();
-//     });
-//   }
-// });
+describe('Check add capacity functionality for ocs service', () => {
+  beforeAll(async () => {
+    [expansionObjects.clusterJSON] = storageCluster.items;
+    const uid = _.get(expansionObjects.clusterJSON, 'metadata.uid').toString();
 
-// describe('Check availability of Ceph cluster', () => {
-//   if (cephHealth) {
-//     it('Check if the Ceph cluster is healthy before expansion', () => {
-//       expect(cephHealth.status.ceph.health).not.toBe(CLUSTER_STATUS.HEALTH_ERROR);
-//     });
-//   } else {
-//     it('Should state that Ceph cluster doesnt exist', () => {
-//       expect(cephHealth).toBeUndefined();
-//     });
-//   }
-// });
+    await goToInstalledOperators();
+    await click(ocsOp);
+    await browser.wait(until.presenceOf(storageClusterNav));
+    await click(storageClusterNav);
+    await clickKebabAction(uid, 'Add Capacity');
+    await click(scDropdown);
+  });
 
-//if (clusterStatus && cephHealth) {
-  describe('Check add capacity functionality for ocs service', () => {
+  describe('For Non Baremetal infra(Cloud and VMWare)', () => {
     beforeAll(async () => {
       [expansionObjects.clusterJSON] = storageCluster.items;
       const name = getName(expansionObjects.clusterJSON);
@@ -83,29 +47,15 @@ const expansionObjects: ExpansionObjectsType = {
         expansionObjects.clusterJSON,
         'spec.storageDeviceSets[0].count',
       );
-      const uid = _.get(expansionObjects.clusterJSON, 'metadata.uid').toString();
-    
-      await goToInstalledOperators();
-      await click(ocsOp);
-      const storageClusterLink = await getStorageClusterLink();
-      await click(storageClusterLink);
-
-      await clickKebabAction(uid, 'Add Capacity');
+      // eslint-disable-next-line no-useless-escape
+      defaultSC = execSync(`kubectl get storageclasses | grep -Po '\\w+(?=.*default)'`)
+        .toString()
+        .trim();
+      await click(getSCOption(defaultSC));
       await verifyFields();
       await click(confirmButton);
 
-      const statusCol = storageClusterRow(uid).$('td:nth-child(3)');
-
-      // need to wait as cluster states fluctuates for some time. Waiting for 2 secs for the same
-      // await browser.sleep(2 * SECOND);
-
-      // await browser.wait(until.textToBePresentInElement(statusCol, CLUSTER_STATUS.PROGRESSING));
-      // await browser.wait(
-      //   until.textToBePresentInElement(
-      //     statusCol.$('span.co-icon-and-text span'),
-      //     CLUSTER_STATUS.READY,
-      //   ),
-      // );
+      await browser.sleep(5 * SECOND);
 
       expansionObjects.updatedClusterJSON = JSON.parse(
         execSync(`kubectl get -o json -n ${NS} ${KIND} ${name}`).toString(),
@@ -114,32 +64,20 @@ const expansionObjects: ExpansionObjectsType = {
         expansionObjects.updatedClusterJSON,
         'spec.storageDeviceSets[0].count',
       );
-
-    }, 2 * MINUTE);
+    });
 
     it('Newly added capacity should takes into effect at the storage level', () => {
       // by default 2Tib capacity is being added
       expect(expansionObjects.updatedCnt - expansionObjects.previousCnt).toEqual(1);
     });
 
-
+    it('Selected storage class should be sent in the YAML', () => {
+      const storageCR = JSON.parse(
+        execSync(`kubectl get storageclusters ${STORAGE_CLUSTER_NAME} -n ${NS} -o json`).toString(),
+      );
+      const scFromYAML =
+        storageCR?.spec?.storageDeviceSets?.[0]?.dataPVCTemplate?.spec?.storageClassName;
+      expect(defaultSC).toEqual(scFromYAML);
+    });
   });
-//}
-
-type PodType = {
-  items: PodKind[];
-};
-
-type ExpansionObjectsType = {
-  clusterJSON: {};
-  previousCnt: number;
-  updatedCnt: number;
-  updatedClusterJSON: {};
-  previousPods: PodType;
-  updatedPods: PodType;
-  previousOSDTree: { nodes: NodeType[] };
-  updatedOSDTree: { nodes: NodeType[] };
-  formattedOSDTree: FormattedOsdTreeType;
-  previousOSDIds: number[];
-  newOSDIds: number[];
-};
+});

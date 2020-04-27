@@ -14,15 +14,18 @@ export const getStorageClusterLink = async () => {
 export const actionForLabel = (label: string) => $(`button[data-test-action='${label}']`);
 export const confirmButton = $('#confirm-action');
 export const storageClusterRow = (uid) => $(`tr[data-id='${uid}']`);
+export const storageClusterNav = $('a[data-test-id="horizontal-link-Storage Cluster"]');
+export const scDropdown = $('button[id="ceph-sc-dropdown"]');
+export const getSCOption = (scName: string) => $(`a[id='${scName}-link']`);
 
-const capacityValueInput = $('input.add-capacity-modal__input--width');
-const capacityUnitButton = $('button[data-test-id="dropdown-button"] .pf-c-dropdown__toggle-text');
+const capacityValueInput = $('input.ceph-add-capacity__input');
+const totalRequestedcapacity = $('div.ceph-add-capacity__input--info-text strong');
 
 export const verifyFields = async () => {
   await browser.wait(until.presenceOf(capacityValueInput));
-  await browser.wait(until.presenceOf(capacityUnitButton));
-  expect(capacityUnitButton.getText()).toEqual(CAPACITY_UNIT);
+  await browser.wait(until.presenceOf(totalRequestedcapacity));
   expect(capacityValueInput.getAttribute('value')).toBe(CAPACITY_VALUE);
+  expect(totalRequestedcapacity.getText()).toEqual(`6 ${CAPACITY_UNIT}`);
 };
 
 export const clickKebabAction = async (uid: string, actionLabel: string) => {
