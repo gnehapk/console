@@ -307,7 +307,7 @@ FireMan_.propTypes = {
   title: PropTypes.string,
 };
 
-/** @type {React.SFC<{ListComponent: React.ComponentType<any>, kind: string, helpText?: any, namespace?: string, filterLabel?: string, textFilter?: string, title?: string, showTitle?: boolean, rowFilters?: any[], selector?: any, fieldSelector?: string, canCreate?: boolean, createButtonText?: string, createProps?: any, mock?: boolean, badge?: React.ReactNode, createHandler?: any, hideToolbar?: boolean, hideLabelFilter?: boolean, customData?: any} >} */
+/** @type {React.SFC<{ListComponent: React.ComponentType<any>, kind: string, helpText?: any, namespace?: string, filterLabel?: string, textFilter?: string, title?: string, showTitle?: boolean, rowFilters?: any[], selector?: any, fieldSelector?: string, canCreate?: boolean, createButtonText?: string, createProps?: any, mock?: boolean, badge?: React.ReactNode, createHandler?: any, hideToolbar?: boolean, hideLabelFilter?: boolean, customData?: any, onSelect?: function} >} */
 export const ListPage = withFallback((props) => {
   const {
     autoFocus,
@@ -334,6 +334,7 @@ export const ListPage = withFallback((props) => {
     badge,
     hideToolbar,
     hideLabelFilter,
+    onSelect,
   } = props;
   let { createProps } = props;
   const ko = kindObj(kind);
@@ -400,13 +401,14 @@ export const ListPage = withFallback((props) => {
       badge={badge}
       hideToolbar={hideToolbar}
       hideLabelFilter={hideLabelFilter}
+      onSelect={onSelect}
     />
   );
 }, ErrorBoundaryFallback);
 
 ListPage.displayName = 'ListPage';
 
-/** @type {React.SFC<{canCreate?: boolean, createButtonText?: string, createProps?: any, createAccessReview?: Object, flatten?: Function, title?: string, label?: string, hideTextFilter?: boolean, showTitle?: boolean, helpText?: any, filterLabel?: string, textFilter?: string, rowFilters?: any[], resources: any[], ListComponent: React.ComponentType<any>, namespace?: string, customData?: any, badge?: React.ReactNode, hideToolbar?: boolean, hideLabelFilter?: boolean >} */
+/** @type {React.SFC<{canCreate?: boolean, createButtonText?: string, createProps?: any, createAccessReview?: Object, flatten?: Function, title?: string, label?: string, hideTextFilter?: boolean, showTitle?: boolean, helpText?: any, filterLabel?: string, textFilter?: string, rowFilters?: any[], resources: any[], ListComponent: React.ComponentType<any>, namespace?: string, customData?: any, badge?: React.ReactNode, hideToolbar?: boolean, hideLabelFilter?: boolean, onSelect?: function >} */
 export const MultiListPage = (props) => {
   const {
     autoFocus,
@@ -430,6 +432,7 @@ export const MultiListPage = (props) => {
     badge,
     hideToolbar,
     hideLabelFilter,
+    onSelect,
   } = props;
 
   const resources = _.map(props.resources, (r) => ({
@@ -466,6 +469,7 @@ export const MultiListPage = (props) => {
           customData={customData}
           hideToolbar={hideToolbar}
           hideLabelFilter={hideLabelFilter}
+          onSelect={onSelect}
         />
       </Firehose>
     </FireMan_>

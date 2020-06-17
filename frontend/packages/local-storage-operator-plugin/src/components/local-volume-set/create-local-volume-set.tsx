@@ -23,19 +23,14 @@ import {
 } from '@console/internal/components/utils';
 import { history } from '@console/internal/components/utils/router';
 import { ListPage } from '@console/internal/components/factory';
-import { k8sCreate, referenceFor } from '@console/internal/module/k8s';
+import { k8sCreate, referenceFor, NodeKind } from '@console/internal/module/k8s';
 import { NodeModel } from '@console/internal/models';
+import { useSelectList } from '@console/shared/src/hooks/select-list';
 import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager';
 import { LocalVolumeSetModel } from '../../models';
 import { NodesSelectionList } from './nodes-selection-list';
-import {
-  RowUIDMap,
-  LocalVolumeSetKind,
-  DeviceType,
-  DiskType,
-  DeviceMechanicalProperty,
-} from './types';
-import { getSelectedNodeUIDs } from './utils';
+import { LocalVolumeSetKind, DeviceType, DiskType, DeviceMechanicalProperty } from './types';
+import { getName } from '@console/shared';
 import './create-local-volume-set.scss';
 
 const volumeModeDropdownItems = {
@@ -56,11 +51,15 @@ const CreateLocalVolumeSet: React.FC = withHandlePromise<CreateLocalVolumeSetPro
   const [volumeType, setVolumeType] = React.useState<DiskType>(DiskType.SSD);
   const [volumeMode, setVolumeMode] = React.useState(volumeModeDropdownItems.Block);
   const [maxVolumeLimit, setMaxVolumeLimit] = React.useState('');
-  const [rows, setRows] = React.useState<RowUIDMap>({});
-  const [allSelected, setAllSelected] = React.useState<boolean>(null);
+  const [visibleRows, setVisibleRows] = React.useState<NodeKind[]>([]);
 
   const { ns, appName } = match.params;
   const modelName = LocalVolumeSetModel.label;
+  const {
+    onSelect,
+    selectedRows: selectedNodes,
+    setSelectedRows: setSelectedNodes,
+  } = useSelectList<NodeKind>(visibleRows);
 
   const toggleShowNodesList = () => {
     setShowNodesList(!showNodesList);
@@ -85,13 +84,12 @@ const CreateLocalVolumeSet: React.FC = withHandlePromise<CreateLocalVolumeSetPro
     };
 
     if (showNodesList) {
-      const selectedNodesUID = getSelectedNodeUIDs(rows);
-      const selectedNodes = selectedNodesUID.map((uid) => rows[uid].props.data.metadata.name);
+      const selectedNodesNames = selectedNodes.map((node) => getName(node));
       requestData.spec.nodeSelector = {
         nodeSelectorTerms: [
           {
             matchExpressions: [
-              { key: 'kubernetes.io/hostname', operator: 'In', values: [...selectedNodes] },
+              { key: 'kubernetes.io/hostname', operator: 'In', values: [...selectedNodesNames] },
             ],
           },
         ],
@@ -170,10 +168,11 @@ const CreateLocalVolumeSet: React.FC = withHandlePromise<CreateLocalVolumeSetPro
         </FormGroup>
         {showNodesList && (
           <ListPage
-            customData={{ rows, setRows, allSelected, setAllSelected }}
+            customData={{ selectedNodes, setSelectedNodes, visibleRows, setVisibleRows }}
             showTitle={false}
             kind={NodeModel.kind}
             ListComponent={NodesSelectionList}
+            onSelect={onSelect}
           />
         )}
         <FormGroup label="Volume Type" fieldId="create-lvs--volume-type-dropdown">

@@ -11,9 +11,11 @@ import {
 import { humanizeCpuCores, ResourceLink, pluralize } from '@console/internal/components/utils/';
 import { NodeKind } from '@console/internal/module/k8s';
 import { Table } from '@console/internal/components/factory';
-import { IRow, OnSelect } from '@patternfly/react-table';
+import { IRow } from '@patternfly/react-table';
 import { hasOCSTaint, hasTaints, getConvertedUnits } from '../../utils/install';
 import { cephStorageLabel } from '../../selectors';
+import { useSelectList } from '@console/shared/src/hooks/select-list';
+
 import './ocs-install.scss';
 
 const tableColumnClasses = [
@@ -66,9 +68,9 @@ type GetRows = ({
   };
 }) => NodeTableRow[];
 
-const getRows: GetRows = ({ componentProps, customData }) => {
+const getRows: GetRows = ({ componentProps, customData }, visibleRows, setVisibleRows, selectedNodes, setSelectedNodes) => {
   const { data } = componentProps;
-  const { selectedNodes, setSelectedNodes, setVisibleRows, visibleRows } = customData;
+  const { onRowSelected } = customData;
 
   const filteredData = data.filter((node: NodeKind) => hasOCSTaint(node) || !hasTaints(node));
 
@@ -111,43 +113,14 @@ const getRows: GetRows = ({ componentProps, customData }) => {
       setSelectedNodes(preSelected);
     }
   }
+
   return rows;
 };
 
 const NodeTable: React.FC<NodeTableProps> = (props) => {
-  const { selectedNodes, setSelectedNodes, visibleRows } = props.customData;
+  const [visibleRows, setVisibleRows] = React.useState<NodeKind[]>();
 
-  const onSelect: OnSelect = (_event, isSelected, rowIndex, rowData) => {
-    const selectedUIDs = selectedNodes?.map((node) => node.metadata.uid) ?? [];
-    const visibleUIDs = visibleRows?.map((row) => row.metadata.uid);
-    if (rowIndex === -1) {
-      if (isSelected) {
-        const uniqueUIDs = _.uniq([...visibleUIDs, ...selectedUIDs]);
-        setSelectedNodes(
-          _.uniqBy(
-            [...visibleRows, ...selectedNodes].filter((node) =>
-              uniqueUIDs.includes(node.metadata.uid),
-            ),
-            (n) => n.metadata.uid,
-          ),
-        );
-      } else {
-        setSelectedNodes(
-          _.uniqBy(
-            selectedNodes.filter((node) => !visibleUIDs.includes(node.metadata.uid)),
-            (n) => n.metadata.uid,
-          ),
-        );
-      }
-    } else {
-      const uniqueUIDs = _.xor(selectedUIDs, [rowData.props.id]);
-      const data = _.uniqBy(
-        [...visibleRows, ...selectedNodes].filter((node) => uniqueUIDs.includes(node.metadata.uid)),
-        (n) => n.metadata.uid,
-      );
-      setSelectedNodes(data);
-    }
-  };
+  const {onSelect, selectedRows: selectedNodes, setSelectedRows: setSelectedNodes} = useSelectList<NodeKind>(visibleRows, props.customData.onRowSelected, props.data);
 
   return (
     <>
@@ -156,7 +129,7 @@ const NodeTable: React.FC<NodeTableProps> = (props) => {
           aria-label="Node Table"
           data-test-id="select-nodes-table"
           {...props}
-          Rows={getRows}
+          Rows={(props) => getRows(props, visibleRows, setVisibleRows, selectedNodes, setSelectedNodes)}
           Header={getColumns}
           virtualize={false}
           onSelect={onSelect}
