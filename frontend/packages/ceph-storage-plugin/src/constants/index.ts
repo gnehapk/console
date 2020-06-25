@@ -13,3 +13,5 @@ export const OCS_INDEPENDENT_CR_NAME = 'ocs-external-storagecluster';
 export const OCS_CONVERGED_CR_NAME = 'ocs-storagecluster';
 export const NO_PROVISIONER = 'kubernetes.io/no-provisioner';
 export const OCS_SUPPORT_ANNOTATION = 'features.ocs.openshift.io/enabled';
+export const ATTACHED_DEVICES = 'Attached Devices';
+export const LSO_NAMESPACE = 'local-storage';

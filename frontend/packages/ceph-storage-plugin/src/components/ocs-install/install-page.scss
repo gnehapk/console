@@ -13,3 +13,11 @@
 .ceph-install--no-margin > input {
   margin: auto;
 }
+
+.ceph-install__mode-toggle {
+  padding: 8px 30px;
+  border-bottom: 1px solid #ddd;
+  & label {
+    margin: 0;
+  }
+}

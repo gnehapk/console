@@ -12,6 +12,7 @@ import {
   CEPH_STORAGE_NAMESPACE,
   OCS_SUPPORT_ANNOTATION,
   OCS_CONVERGED_CR_NAME,
+  LSO_NAMESPACE,
 } from './constants';
 
 export const OCS_INDEPENDENT_FLAG = 'OCS_INDEPENDENT';
@@ -20,6 +21,8 @@ export const OCS_CONVERGED_FLAG = 'OCS_CONVERGED';
 export const OCS_FLAG = 'OCS';
 // Todo(bipuladh): Remove this completely in 4.6
 export const CEPH_FLAG = 'CEPH';
+
+export const LSO_FLAG = 'LSO';
 
 /* Key and Value should be same value received in CSV  */
 export const OCS_SUPPORT_FLAGS = {
@@ -85,5 +88,22 @@ export const detectOCSSupportedFeatures: FeatureDetector = async (dispatch) => {
           dispatch(setFlag(feature, false));
         })
       : handleError(error, _.keys(OCS_SUPPORT_FLAGS), dispatch, detectOCSSupportedFeatures);
+  }
+};
+
+export const detectLSO: FeatureDetector = async (dispatch) => {
+  try {
+    const subscription = await fetchK8s<K8sResourceKind>(
+      SubscriptionModel,
+      'local-storage-operator',
+      LSO_NAMESPACE,
+    );
+    await fetchK8s(ClusterServiceVersionModel, subscription?.status?.currentCSV, LSO_NAMESPACE);
+
+    dispatch(setFlag(LSO_FLAG, true));
+  } catch (err) {
+    err?.response?.status !== 404
+      ? handleError(err, [LSO_FLAG], dispatch, detectLSO)
+      : dispatch(setFlag(LSO_FLAG, false));
   }
 };

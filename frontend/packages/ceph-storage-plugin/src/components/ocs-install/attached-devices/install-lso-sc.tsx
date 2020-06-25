@@ -1,5 +1,4 @@
 import * as React from 'react';
-import * as _ from 'lodash';
 import { match } from 'react-router';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
@@ -7,14 +6,13 @@ import { useDispatch } from 'react-redux';
 import { Alert, ActionGroup, Button, Form, FormGroup } from '@patternfly/react-core';
 import {
   NodeKind,
-  k8sPatch,
-  k8sCreate,
-  referenceForModel,
   StorageClassResourceKind,
+  referenceForModel,
+  k8sCreate,
+  K8sResourceKind,
 } from '@console/internal/module/k8s';
 import { ListPage } from '@console/internal/components/factory';
 import { NodeModel } from '@console/internal/models';
-import { getName, hasLabel } from '@console/shared';
 import {
   withHandlePromise,
   HandlePromiseProps,
@@ -23,50 +21,36 @@ import {
   ButtonBar,
 } from '@console/internal/components/utils';
 import { setFlag } from '@console/internal/actions/features';
+import { useK8sWatchResource } from '@console/internal/components/utils/k8s-watch-hook';
+import { getName } from '@console/shared';
 import {
-  labelTooltip,
   minSelectedNode,
   storageClassTooltip,
   defaultRequestSize,
-} from '../../constants/ocs-install';
-import { OCSServiceModel } from '../../models';
-import { OCSStorageClassDropdown } from '../modals/storage-class-dropdown';
-import { OSDSizeDropdown } from '../../utils/osd-size-dropdown';
-import { cephStorageLabel } from '../../selectors';
-import NodeTable from './node-list';
-import { OCS_FLAG, OCS_CONVERGED_FLAG } from '../../features';
-import { NO_PROVISIONER } from '../../constants';
-import { getOCSRequestData } from './ocs-request-data';
+} from '../../../constants/ocs-install';
+import { NO_PROVISIONER } from '../../../constants';
+import { OCSServiceModel } from '../../../models';
+import { OCSStorageClassDropdown } from '../../modals/storage-class-dropdown';
+import AttachedDevicesNodeTable from './sc-node-list';
+import { PVsAvailableCapacity } from '../pvs-available-capacity';
+import { OCS_CONVERGED_FLAG, OCS_FLAG } from '../../../features';
+import { makeLabelNodesRequest } from '../create-form';
+import { lvsResource } from '../../../constants/resources';
+import { getOCSRequestData } from '../ocs-request-data';
 
-import './ocs-install.scss';
-
-export const makeLabelNodesRequest = (selectedNodes: NodeKind[]): Promise<NodeKind>[] => {
-  const patch = [
-    {
-      op: 'add',
-      path: '/metadata/labels/cluster.ocs.openshift.io~1openshift-storage',
-      value: '',
-    },
-  ];
-  return _.reduce(
-    selectedNodes,
-    (accumulator, node) => {
-      return hasLabel(node, cephStorageLabel)
-        ? accumulator
-        : [...accumulator, k8sPatch(NodeModel, node, patch)];
-    },
-    [],
-  );
-};
+import '../ocs-install.scss';
+import './attached-devices.scss';
 
 const makeOCSRequest = (
   selectedData: NodeKind[],
   storageClass: StorageClassResourceKind,
-  osdSize: string,
 ): Promise<any> => {
   const promises = makeLabelNodesRequest(selectedData);
   const scName = getName(storageClass);
-  const ocsObj = getOCSRequestData(scName, osdSize);
+  const ocsObj = getOCSRequestData(scName, defaultRequestSize.BAREMETAL);
+
+  ocsObj.spec.monDataDirHostPath = '/var/lib/rook';
+  ocsObj.spec.storageDeviceSets[0].portable = false;
 
   return Promise.all(promises).then(() => {
     if (!scName) {
@@ -76,9 +60,7 @@ const makeOCSRequest = (
   });
 };
 
-export const CreateOCSServiceForm = withHandlePromise<
-  CreateOCSServiceFormProps & HandlePromiseProps
->((props) => {
+export const CreateOCS = withHandlePromise<CreateOCSProps & HandlePromiseProps>((props) => {
   const {
     handlePromise,
     errorMessage,
@@ -87,15 +69,35 @@ export const CreateOCSServiceForm = withHandlePromise<
       params: { appName, ns },
     },
   } = props;
-  const [osdSize, setOSDSize] = React.useState(defaultRequestSize.NON_BAREMETAL);
+  const [filteredNodes, setFilteredNodes] = React.useState<string[]>([]);
   const [storageClass, setStorageClass] = React.useState<StorageClassResourceKind>(null);
-  const dispatch = useDispatch();
   const [nodes, setNodes] = React.useState<NodeKind[]>([]);
+  const [lvsList, setLvsList] = React.useState<K8sResourceKind[]>([]);
+  const dispatch = useDispatch();
+  const [lvsData, lvsLoaded, lvsLoadError] = useK8sWatchResource<K8sResourceKind[]>(lvsResource);
+
+  const handleStorageClass = (sc: StorageClassResourceKind) => {
+    setStorageClass(sc);
+
+    const [lvs] = lvsList.filter((l) => l?.spec?.storageClassName === sc?.metadata?.name);
+    setFilteredNodes(
+      lvs?.spec?.nodeSelector?.nodeSelectorTerms?.[0]?.matchExpressions?.[0]?.values,
+    );
+  };
+
+  React.useEffect(() => {
+    if ((lvsLoadError || lvsData.length === 0) && lvsLoaded) {
+      setLvsList([]);
+      setFilteredNodes([]);
+    } else if (lvsLoaded) {
+      setLvsList(lvsData);
+    }
+  }, [lvsData, lvsLoaded, lvsLoadError]);
 
   const submit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     // eslint-disable-next-line promise/catch-or-return
-    handlePromise(makeOCSRequest(nodes, storageClass, osdSize)).then(() => {
+    handlePromise(makeOCSRequest(nodes, storageClass)).then(() => {
       dispatch(setFlag(OCS_CONVERGED_FLAG, true));
       dispatch(setFlag(OCS_FLAG, true));
       history.push(
@@ -106,15 +108,13 @@ export const CreateOCSServiceForm = withHandlePromise<
     });
   };
 
-  const handleStorageClass = (sc: StorageClassResourceKind) => {
-    setStorageClass(sc);
-    setOSDSize(defaultRequestSize.NON_BAREMETAL);
-  };
-
-  const filterSC = React.useCallback((sc) => sc?.provisioner !== NO_PROVISIONER, []);
+  const onlyNoProvSC = React.useCallback(
+    (sc: StorageClassResourceKind) => sc?.provisioner === NO_PROVISIONER,
+    [],
+  );
 
   return (
-    <div className="co-m-pane__body co-m-pane__form">
+    <div className="co-m-pane__form">
       <Alert
         className="co-alert"
         variant="info"
@@ -138,24 +138,13 @@ export const CreateOCSServiceForm = withHandlePromise<
             <OCSStorageClassDropdown
               onChange={handleStorageClass}
               data-test-id="ocs-dropdown"
-              filter={filterSC}
+              filter={onlyNoProvSC}
             />
           </div>
-        </FormGroup>
-        <FormGroup
-          fieldId="select-osd-size"
-          label={
-            <>
-              OCS Service Capacity
-              <FieldLevelHelp>{labelTooltip}</FieldLevelHelp>
-            </>
-          }
-        >
-          <OSDSizeDropdown
-            className="ceph-ocs-install__ocs-service-capacity--dropdown"
-            selectedKey={osdSize}
-            onChange={setOSDSize}
-            data-test-id="osd-dropdown"
+          <PVsAvailableCapacity
+            replica={getOCSRequestData().spec.storageDeviceSets[0].replica}
+            data-test-id="ceph-ocs-install-pvs-available-capacity"
+            sc={storageClass}
           />
         </FormGroup>
         <h3 className="co-m-pane__heading co-m-pane__heading--baseline ceph-ocs-install__pane--node--margin">
@@ -163,13 +152,9 @@ export const CreateOCSServiceForm = withHandlePromise<
         </h3>
         <FormGroup fieldId="select-nodes">
           <p>
-            Selected nodes will be labeled with{' '}
+            Nodes will be labeled with{' '}
             <code>cluster.ocs.openshift.io/openshift-storage=&quot;&quot;</code> to create the OCS
             Service.
-          </p>
-          <p className="co-legend" data-test-id="warning">
-            Select at least 3 nodes in different failure domains with minimum requirements of 16
-            CPUs and 64 GiB of RAM per node.
           </p>
           <p>
             3 selected nodes are used for initial deployment. The remaining selected nodes will be
@@ -178,20 +163,17 @@ export const CreateOCSServiceForm = withHandlePromise<
           <ListPage
             kind={NodeModel.kind}
             showTitle={false}
-            ListComponent={NodeTable}
-            customData={{
-              onRowSelected: setNodes,
-            }}
+            ListComponent={AttachedDevicesNodeTable}
+            customData={{ filteredNodes, nodes, setNodes }}
           />
         </FormGroup>
-
         <ButtonBar errorMessage={errorMessage} inProgress={inProgress}>
           <ActionGroup className="pf-c-form">
             <Button
               type="button"
               variant="primary"
               onClick={submit}
-              isDisabled={(nodes?.length ?? 0) < minSelectedNode}
+              isDisabled={(filteredNodes?.length ?? 0) < minSelectedNode}
             >
               Create
             </Button>
@@ -205,6 +187,6 @@ export const CreateOCSServiceForm = withHandlePromise<
   );
 });
 
-type CreateOCSServiceFormProps = {
+type CreateOCSProps = {
   match: match<{ appName: string; ns: string }>;
 };
