@@ -4,17 +4,19 @@ import { k8sGet } from '@console/internal/module/k8s';
 import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager';
 import { BreadCrumbs } from '@console/internal/components/utils';
 import { getAnnotations } from '@console/shared/src/selectors/common';
-import { Radio, Title } from '@patternfly/react-core';
+import { RadioGroup } from '@console/internal/components/radio';
 import { getRequiredKeys, createDownloadFile } from '../independent-mode/utils';
 import { OCSServiceModel } from '../../models';
 import InstallExternalCluster from '../independent-mode/install';
 import { CreateOCSServiceForm } from './create-form';
 import { OCS_SUPPORT_ANNOTATION } from '../../constants';
+import { CreateOCSOnAttachedDevices } from './attached-devices/install';
 import './install-page.scss';
 
 enum MODES {
-  CONVERGED = 'Converged',
-  INDEPENDENT = 'Independent',
+  CONVERGED = 'Internal',
+  INDEPENDENT = 'External',
+  ATTACHED_DEVICES = 'Attached Devices',
 }
 
 // eslint-disable-next-line no-shadow
@@ -32,7 +34,7 @@ const InstallCluster: React.FC<InstallClusterProps> = ({ match }) => {
   const [mode, setMode] = React.useState(MODES.CONVERGED);
   const [clusterServiceVersion, setClusterServiceVersion] = React.useState(null);
 
-  const handleModeChange = (_checked: boolean, event: React.FormEvent<HTMLInputElement>) => {
+  const handleModeChange = (event: React.FormEvent<HTMLInputElement>) => {
     const { value } = event.currentTarget;
     setMode(value as MODES);
   };
@@ -89,40 +91,32 @@ const InstallCluster: React.FC<InstallClusterProps> = ({ match }) => {
           storage, and handles the scenes such as provisioning and management.
         </p>
       </div>
-
-      <div className="co-m-pane__body co-m-pane__form">
-        {isIndependent && (
-          <div className="ceph-install__select-mode">
-            <Title headingLevel="h5" size="lg" className="ceph-install-select-mode__title">
-              Select Mode
-            </Title>
-            <div className="ceph-install-select-mode">
-              <Radio
-                value={MODES.CONVERGED}
-                isChecked={mode === MODES.CONVERGED}
-                onChange={handleModeChange}
-                id="radio-1"
-                className="ceph-install--no-margin"
-                label="Internal"
-                name="converged-mode"
-              />
-            </div>
-            <div className="ceph-install-select-mode">
-              <Radio
-                value={MODES.INDEPENDENT}
-                isChecked={mode === MODES.INDEPENDENT}
-                onChange={handleModeChange}
-                id="radio-2"
-                label="External"
-                name="independent-mode"
-                className="ceph-install--no-margin"
-              />
-            </div>
-          </div>
-        )}
-        {(isIndependent === false || mode === MODES.CONVERGED) && (
-          <CreateOCSServiceForm match={match} />
-        )}
+      <div className="ceph-install__mode-toggle">
+        <RadioGroup
+          label="Select Mode:"
+          currentValue={mode}
+          inline
+          items={[
+            {
+              value: MODES.CONVERGED,
+              title: MODES.CONVERGED,
+            },
+            {
+              value: MODES.INDEPENDENT,
+              title: MODES.INDEPENDENT,
+              disabled: !isIndependent,
+            },
+            // will activate the attached flows once completed and tested
+            {
+              value: MODES.ATTACHED_DEVICES,
+              title: MODES.ATTACHED_DEVICES,
+            },
+          ]}
+          onChange={handleModeChange}
+        />
+      </div>
+      <div>
+        {mode === MODES.CONVERGED && <CreateOCSServiceForm match={match} />}
         {mode === MODES.INDEPENDENT && (
           <InstallExternalCluster
             match={match}
@@ -130,6 +124,7 @@ const InstallCluster: React.FC<InstallClusterProps> = ({ match }) => {
             downloadFile={downloadFile}
           />
         )}
+        {mode === MODES.ATTACHED_DEVICES && <CreateOCSOnAttachedDevices match={match} />}
       </div>
     </>
   );

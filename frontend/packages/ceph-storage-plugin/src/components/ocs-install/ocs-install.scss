@@ -29,3 +29,11 @@
 .ceph-install-select-mode {
   padding: var(--pf-global--spacer--sm) 0;
 }
+
+.ceph-ocs-install__pane--capacity--margin {
+  margin-bottom: 1.3rem;
+}
+
+.ceph-ocs-install__pane--node--margin {
+  margin-bottom: 0;
+}
