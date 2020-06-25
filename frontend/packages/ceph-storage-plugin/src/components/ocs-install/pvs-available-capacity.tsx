@@ -19,8 +19,9 @@ export const PVsAvailableCapacity: React.FC<PVAvaialbleCapacityProps> = ({ repli
   if ((loadError || data.length === 0) && loaded) {
     availableStatusEl = <div className="text-muted">Not Available</div>;
   } else if (loaded) {
-    const pvs = getSCAvailablePVs(data, getName(sc));
-    availableCapacity = humanizeBinaryBytes(calcPVsCapacity(pvs)).string;
+    const name = getName(sc);
+    const pvs = getSCAvailablePVs(data, name);
+    availableCapacity = humanizeBinaryBytes(calcPVsCapacity(pvs, name)).string;
     availableStatusEl = <div>{`${availableCapacity} / ${replica} replicas`}</div>;
   }
 

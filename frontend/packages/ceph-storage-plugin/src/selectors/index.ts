@@ -64,11 +64,12 @@ export const getOCSVersion = (items: FirehoseResult): string => {
   return _.get(operator, 'status.installedCSV');
 };
 
-export const calcPVsCapacity = (pvs: K8sResourceKind[]): number =>
-  pvs.reduce((sum, pv) => {
-    const storage = Number(convertToBaseValue(pv.spec.capacity.storage));
-    return sum + storage;
-  }, 0);
+export const calcPVsCapacity = (pvs: K8sResourceKind[], sc: string): number =>
+  pvs.filter((pv) => pv.spec?.storageClassName === sc)  
+    .reduce((sum, pv) => {
+        const storage = Number(convertToBaseValue(pv.spec.capacity.storage));
+        return sum + storage;
+      }, 0);
 
 export const getSCAvailablePVs = (pvsData: K8sResourceKind[], sc: string): K8sResourceKind[] =>
   pvsData.filter((pv) => getPVStorageClass(pv) === sc && pv.status.phase === status.AVAILABLE);

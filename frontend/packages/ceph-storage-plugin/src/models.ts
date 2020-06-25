@@ -38,3 +38,16 @@ export const VolumeSnapshotModel: K8sKind = {
   labelPlural: 'Volume Snapshots',
   crd: true,
 };
+
+export const LocalVolumeSetModel: K8sKind = {
+  label: 'Local Volume Set',
+  labelPlural: 'Local Volume Sets',
+  apiVersion: 'v1alpha1',
+  apiGroup: 'local.storage.openshift.io',
+  plural: 'localvolumesets',
+  abbr: 'LVS',
+  namespaced: true,
+  kind: 'LocalVolumeSet',
+  id: 'localvolumeset',
+  crd: true,
+};

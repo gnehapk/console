@@ -23,6 +23,7 @@ import {
   OCS_INDEPENDENT_FLAG,
   OCS_SUPPORT_FLAGS,
   OCS_CONVERGED_FLAG,
+  detectLSO,
 } from './features';
 import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager/src/models';
 import { GridPosition } from '@console/shared/src/components/dashboard/DashboardGrid';
@@ -75,6 +76,12 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'FeatureFlag/Custom',
     properties: {
       detect: detectOCS,
+    },
+  },
+  {
+    type: 'FeatureFlag/Custom',
+    properties: {
+      detect: detectLSO,
     },
   },
   {

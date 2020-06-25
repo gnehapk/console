@@ -11,17 +11,24 @@ import {
   convertToBaseValue,
 } from '@console/internal/components/utils';
 import { NodeKind } from '@console/internal/module/k8s';
-import { getName, getNodeCPUCapacity, getNodeAllocatableMemory } from '@console/shared';
+import {
+  getName,
+  getNodeRoles,
+  getNodeCPUCapacity,
+  getNodeAllocatableMemory,
+} from '@console/shared';
 import { useSelectList } from '@console/shared/src/hooks/select-list';
+import { hasTaints } from '@console/ceph-storage-plugin/src/utils/install';
 import { GetRows } from './types';
 import './node-selection-list.scss';
 
 const tableColumnClasses = [
-  classNames('pf-u-w-30-on-sm'),
-  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-10-on-sm'),
-  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-20-on-sm'),
-  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-20-on-sm'),
-  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-20-on-sm'),
+  classNames('col-md-1', 'col-sm-1', 'col-xs-1'),
+  classNames('col-md-4', 'col-sm-8', 'col-xs-11'),
+  classNames('col-md-2', 'col-sm-3', 'hidden-xs'),
+  classNames('col-md-2', 'hidden-sm', 'hidden-xs'),
+  classNames('col-md-1', 'hidden-sm', 'hidden-xs'),
+  classNames('col-md-2', 'hidden-sm', 'hidden-xs'),
 ];
 
 const getColumns = () => {
@@ -30,14 +37,10 @@ const getColumns = () => {
       title: 'Name',
       sortField: 'metadata.name',
       transforms: [sortable],
-      props: { className: tableColumnClasses[0] },
-    },
-    {
-      title: 'CPU',
       props: { className: tableColumnClasses[1] },
     },
     {
-      title: 'Memory',
+      title: 'Role',
       props: { className: tableColumnClasses[2] },
     },
     {
@@ -45,8 +48,12 @@ const getColumns = () => {
       props: { className: tableColumnClasses[3] },
     },
     {
-      title: 'Taints',
-      props: { className: tableColumnClasses[3] },
+      title: 'CPU',
+      props: { className: tableColumnClasses[4] },
+    },
+    {
+      title: 'Memory',
+      props: { className: tableColumnClasses[5] },
     },
   ];
 };
@@ -54,27 +61,28 @@ const getColumns = () => {
 const isSelected = (selected: Set<string>, nodeUID: string): boolean => selected.has(nodeUID);
 
 const getRows: GetRows = ({ componentProps }, visibleRows, setVisibleRows, selectedNodes) => {
-  const { data: filteredData } = componentProps;
+  const { data } = componentProps;
 
+  const filteredData = data.filter((node: NodeKind) => !hasTaints(node));
   const rows = filteredData.map((node: NodeKind) => {
     const cpuSpec: string = getNodeCPUCapacity(node);
     const memSpec: string = getNodeAllocatableMemory(node);
-    const nodeTaints = node.spec?.taints?.length ?? 0;
+    const roles = getNodeRoles(node).sort();
     const cells: IRow['cells'] = [
       {
         title: <ResourceLink kind="Node" name={getName(node)} title={node.metadata.uid} />,
+      },
+      {
+        title: roles.join(', ') ?? '-',
+      },
+      {
+        title: node.metadata.labels?.['failure-domain.beta.kubernetes.io/zone'] ?? '-',
       },
       {
         title: `${humanizeCpuCores(cpuSpec).string || '-'}`,
       },
       {
         title: humanizeBinaryBytes(convertToBaseValue(memSpec)).string ?? '-',
-      },
-      {
-        title: node.metadata.labels?.['failure-domain.beta.kubernetes.io/zone'] ?? '-',
-      },
-      {
-        title: pluralize(nodeTaints, 'taint'),
       },
     ];
     return {
