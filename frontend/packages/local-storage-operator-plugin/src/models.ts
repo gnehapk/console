@@ -25,3 +25,29 @@ export const LocalVolumeModel: K8sKind = {
   id: 'localvolume',
   crd: true,
 };
+
+export const LocalVolumeDiscovery: K8sKind = {
+  label: 'Local Volume Discovery',
+  labelPlural: 'Local Volume Discoveries',
+  apiVersion: 'v1alpha1',
+  apiGroup: 'local.storage.openshift.io',
+  plural: 'localvolumediscoveries',
+  abbr: 'LVD',
+  namespaced: true,
+  kind: 'LocalVolumeDiscovery',
+  id: 'localvolumediscovery',
+  crd: true,
+};
+
+export const LocalVolumeDiscoveryResult: K8sKind = {
+  label: 'Local Volume Discovery Result',
+  labelPlural: 'Local Volume Discovery Results',
+  apiVersion: 'v1alpha1',
+  apiGroup: 'local.storage.openshift.io',
+  plural: 'localvolumediscoveryresults',
+  abbr: 'LVDR',
+  namespaced: true,
+  kind: 'LocalVolumeDiscoveryResult',
+  id: 'localvolumediscoveryresult',
+  crd: true,
+};

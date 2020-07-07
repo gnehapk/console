@@ -38,6 +38,22 @@ const plugin: Plugin<ConsumedExtensions> = [
       required: [LSO_FLAG],
     },
   },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${referenceForModel(
+        models.LocalVolumeDiscovery,
+      )}/~new`,
+      loader: () =>
+        import(
+          './components/auto-detect-volume/auto-detect-volume' /* webpackChunkName: "create-local-volume-set" */
+        ).then((m) => m.default),
+    },
+    flags: {
+      required: [LSO_FLAG],
+    },
+  },
 ];
 
 export default plugin;

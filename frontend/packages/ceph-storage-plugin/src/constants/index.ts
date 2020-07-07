@@ -1,3 +1,4 @@
+export * from './ocs-install';
 export const CEPH_HEALTHY = 'is healthy';
 export const CEPH_DEGRADED = 'health is degraded';
 export const CEPH_ERROR = 'health is in error state';

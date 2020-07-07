@@ -3,39 +3,39 @@ import { match as RouterMatch } from 'react-router';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
 import { Alert, Button } from '@patternfly/react-core';
-import { StorageClassResourceKind } from '@console/internal/module/k8s';
+import { StorageClassResourceKind, k8sList } from '@console/internal/module/k8s';
 import { history } from '@console/internal/components/utils';
-import { useK8sWatchResource } from '@console/internal/components/utils/k8s-watch-hook';
+import { StorageClassModel } from '@console/internal/models';
 import { useFlag } from '@console/shared/src/hooks/flag';
 import { NO_PROVISIONER } from '../../../constants';
 import { LSO_FLAG } from '../../../features';
 import { CreateOCS } from './install-lso-sc';
-import { scResource } from '../../../constants/resources';
-
+import CreateSC from './create-sc/create-sc';
 import './attached-devices.scss';
 
 export const CreateOCSOnAttachedDevices: React.FC<CreateOCSOnAttachedDevicesProps> = ({
   match,
 }) => {
-  const [isNoProvSCPresent, SetIsNoProvSCPresent] = React.useState<boolean>(false);
-  const [scData, scLoaded, scLoadError] = useK8sWatchResource<StorageClassResourceKind[]>(
-    scResource,
-  );
+  const {appName, ns} = match.params;
+  const [isNoProvSCPresent, setIsNoProvSCPresent] = React.useState<boolean>(false);
+  const [ isNewSCToBeCreated , setIsNewSCToBeCreated] = React.useState<boolean>(false);
   const LSOEnabled = useFlag(LSO_FLAG);
 
   React.useEffect(() => {
-    if ((scLoadError || scData.length === 0) && scLoaded) {
-      SetIsNoProvSCPresent(false);
-    } else if (scLoaded) {
-      const filteredSCData = scData.filter(
-        (sc: StorageClassResourceKind) => sc?.provisioner === NO_PROVISIONER,
-      );
-      if (filteredSCData.length) {
-        SetIsNoProvSCPresent(true);
-      }
-    }
-  }, [scData, scLoaded, scLoadError]);
-
+    /* this call can't be watched here as watching will take the user back to this view 
+    once a sc gets created from ocs install in case of no sc present*/
+    k8sList(StorageClassModel)
+      .then((storageClasses: StorageClassResourceKind[]) => {
+        const filteredSCData = storageClasses.filter(
+          (sc: StorageClassResourceKind) => sc?.provisioner === NO_PROVISIONER,
+        );
+        if (filteredSCData.length) {
+          setIsNoProvSCPresent(true);
+        }
+      })
+      .catch(() => setIsNoProvSCPresent(false));
+  }, [appName, ns]);
+  
   const takeLSOInstallationPage = () => {
     history.push(
       '/operatorhub/all-namespaces?category=Storage&details-item=local-storage-operator-redhat-operators-openshift-marketplace',
@@ -63,7 +63,8 @@ export const CreateOCSOnAttachedDevices: React.FC<CreateOCSOnAttachedDevicesProp
           </div>
         </Alert>
       )}
-      {isNoProvSCPresent && LSOEnabled && <CreateOCS match={match} />}
+      {(isNoProvSCPresent && LSOEnabled && !isNewSCToBeCreated) && <CreateOCS match={match} setIsNewSCToBeCreated={setIsNewSCToBeCreated} />}
+      {((!isNoProvSCPresent && LSOEnabled) || isNewSCToBeCreated) && <CreateSC match={match} />}
     </div>
   );
 };

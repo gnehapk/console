@@ -35,9 +35,8 @@ import AttachedDevicesNodeTable from './sc-node-list';
 import { PVsAvailableCapacity } from '../pvs-available-capacity';
 import { OCS_CONVERGED_FLAG, OCS_FLAG } from '../../../features';
 import { makeLabelNodesRequest } from '../create-form';
-import { lvsResource } from '../../../constants/resources';
+import { lvsResource, scResource } from '../../../constants/resources';
 import { getOCSRequestData } from '../ocs-request-data';
-
 import '../ocs-install.scss';
 import './attached-devices.scss';
 
@@ -51,6 +50,7 @@ const makeOCSRequest = (
 
   ocsObj.spec.monDataDirHostPath = '/var/lib/rook';
   ocsObj.spec.storageDeviceSets[0].portable = false;
+  console.log(ocsObj, 'ocs');
 
   return Promise.all(promises).then(() => {
     if (!scName) {
@@ -61,20 +61,35 @@ const makeOCSRequest = (
 };
 
 export const CreateOCS = withHandlePromise<CreateOCSProps & HandlePromiseProps>((props) => {
-  const {
-    handlePromise,
-    errorMessage,
-    inProgress,
-    match: {
-      params: { appName, ns },
-    },
-  } = props;
+  const { handlePromise, errorMessage, inProgress, match, setIsNewSCToBeCreated } = props;
+  const { appName, ns } = match.params;
   const [filteredNodes, setFilteredNodes] = React.useState<string[]>([]);
   const [storageClass, setStorageClass] = React.useState<StorageClassResourceKind>(null);
   const [nodes, setNodes] = React.useState<NodeKind[]>([]);
   const [lvsList, setLvsList] = React.useState<K8sResourceKind[]>([]);
   const dispatch = useDispatch();
   const [lvsData, lvsLoaded, lvsLoadError] = useK8sWatchResource<K8sResourceKind[]>(lvsResource);
+  // const [scData, scLoaded, scLoadError] = useK8sWatchResource<StorageClassResourceKind[]>(
+  //   scResource,
+  // );
+
+  // React.useEffect(() => {
+  //   if ((scLoadError || scData.length === 0) && scLoaded) {
+  //     setIsNoProvSCPresent(false);
+  //   } else if (scLoaded) {
+  //     const filteredSCData = scData.filter(
+  //       (sc: StorageClassResourceKind) => sc?.provisioner === NO_PROVISIONER,
+  //     );
+  //     if (filteredSCData.length) {
+  //       setIsNoProvSCPresent(true);
+  //     }
+  //   }
+
+  //   return () => {
+  //     stopWatchK8sResource(scResource);
+  //   };
+  // }, [scData, scLoaded, scLoadError]);
+  
 
   const handleStorageClass = (sc: StorageClassResourceKind) => {
     setStorageClass(sc);
@@ -113,6 +128,10 @@ export const CreateOCS = withHandlePromise<CreateOCSProps & HandlePromiseProps>(
     [],
   );
 
+  const goToCreateSC = () => {
+    setIsNewSCToBeCreated(true);
+  };
+
   return (
     <div className="co-m-pane__form">
       <Alert
@@ -150,23 +169,39 @@ export const CreateOCS = withHandlePromise<CreateOCSProps & HandlePromiseProps>(
         <h3 className="co-m-pane__heading co-m-pane__heading--baseline ceph-ocs-install__pane--node--margin">
           <div className="co-m-pane__name">Nodes</div>
         </h3>
-        <FormGroup fieldId="select-nodes">
-          <p>
-            Nodes will be labeled with{' '}
-            <code>cluster.ocs.openshift.io/openshift-storage=&quot;&quot;</code> to create the OCS
-            Service.
-          </p>
-          <p>
-            3 selected nodes are used for initial deployment. The remaining selected nodes will be
-            used by OpenShift as scheduling targets for OCS scaling.
-          </p>
-          <ListPage
-            kind={NodeModel.kind}
-            showTitle={false}
-            ListComponent={AttachedDevicesNodeTable}
-            customData={{ filteredNodes, nodes, setNodes }}
-          />
-        </FormGroup>
+        {storageClass ? (
+          <FormGroup fieldId="select-nodes">
+            <p>
+              Nodes will be labeled with{' '}
+              <code>cluster.ocs.openshift.io/openshift-storage=&quot;&quot;</code> to create the OCS
+              Service.
+            </p>
+            <p>
+              3 selected nodes are used for initial deployment. The remaining selected nodes will be
+              used by OpenShift as scheduling targets for OCS scaling.
+            </p>
+            <ListPage
+              kind={NodeModel.kind}
+              showTitle={false}
+              ListComponent={AttachedDevicesNodeTable}
+              customData={{ filteredNodes, nodes, setNodes }}
+            />
+          </FormGroup>
+        ) : (
+          <div className="ceph-ocs-install__no-nodes-text--large">Please select a storage class to list the nodes</div>
+        )}
+        {storageClass && filteredNodes?.length < minSelectedNode && (
+          <Alert className="co-alert" variant="danger" title="Minimum Node Requirement" isInline>
+            The OCS Storage cluster require a minimum of 3 nodes for the initial deployment. Please
+            choose a different storage class or go to create a new volume set that matches the
+            minimum node requirement.
+            <div>
+              <Button component="a" variant="link" onClick={goToCreateSC} className="ceph-ocs-install__create-new-sc-btn">
+                Create new volume set instance
+              </Button>
+            </div>
+          </Alert>
+        )}
         <ButtonBar errorMessage={errorMessage} inProgress={inProgress}>
           <ActionGroup className="pf-c-form">
             <Button
@@ -189,4 +224,6 @@ export const CreateOCS = withHandlePromise<CreateOCSProps & HandlePromiseProps>(
 
 type CreateOCSProps = {
   match: match<{ appName: string; ns: string }>;
+  setIsNewSCToBeCreated?: React.Dispatch<boolean>;
+  setIsNoProvSCPresent?: React.Dispatch<boolean>;
 };

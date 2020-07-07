@@ -1,3 +1,5 @@
+import { K8sResourceKind } from '@console/internal/module/k8s';
+
 export const diskModeDropdownItems = {
   BLOCK: 'Block',
   FILESYSTEM: 'Filesystem',
@@ -13,19 +15,37 @@ export const diskSizeUnitOptions = {
   GiB: 'GiB',
 };
 
-export const initialState = {
+export const initialState: State = {
+  // states for step 1
+  showNodesListOnADV: false,
+  nodeNamesForLVS: [], // nodes selected on discovery step, used in LVS step
+  allNodeNamesOnADV: [], // all nodes present in the env
+
+  // states for step 2
   volumeSetName: '',
   storageClassName: '',
   showNodesListOnLVS: false,
   diskType: diskTypeDropdownItems.SSD,
   diskMode: diskModeDropdownItems.BLOCK,
   maxDiskLimit: '',
-  nodeNames: [],
+  nodeNames: [], // nodes selected on the LVS step
   minDiskSize: 0,
   maxDiskSize: 'All',
   diskSizeUnit: 'TiB',
   isValidMaxSize: true,
-  nodeNamesForLVS: [],
+  // states for chart
+  nodesDiscoveries: [],
+  chartSelectedData: '',
+  chartTotalData: '',
+  chartDataUnit: '',
+
+  // common states
+  isLoading: false,
+  error: '',
+};
+
+export type discoveries = K8sResourceKind & {
+  items: K8sResourceKind[];
 };
 
 export type State = {
@@ -40,7 +60,15 @@ export type State = {
   maxDiskSize: number | string;
   diskSizeUnit: string;
   isValidMaxSize: boolean;
+  chartSelectedData: string;
+  chartTotalData: string;
+  chartDataUnit: string;
+  showNodesListOnADV: boolean;
   nodeNamesForLVS: string[];
+  isLoading: boolean;
+  error: string;
+  allNodeNamesOnADV: string[];
+  nodesDiscoveries: discoveries[];
 };
 
 export type Action =
@@ -55,7 +83,16 @@ export type Action =
   | { type: 'setMaxDiskSize'; value: number | string }
   | { type: 'setDiskSizeUnit'; value: string }
   | { type: 'setIsValidMaxSize'; value: boolean }
-  | { type: 'setNodeNamesForLVS'; value: string[] };
+  | { type: 'setAllNodeNames'; value: string[] }
+  | { type: 'setShowNodesListOnADV'; value: boolean }
+  | { type: 'setNodeNamesForLVS'; value: string[] }
+  | { type: 'setIsLoading'; value: boolean }
+  | { type: 'setError'; value: string }
+  | { type: 'setAllNodeNamesOnADV'; value: string[] }
+  | { type: 'setNodesDiscoveries'; value: {} }
+  | { type: 'setChartSelectedData'; value: string }
+  | { type: 'setChartTotalData'; value: string }
+  | { type: 'setChartDataUnit'; unit: string };
 
 export const reducer = (state: State, action: Action) => {
   switch (action.type) {
@@ -81,8 +118,24 @@ export const reducer = (state: State, action: Action) => {
       return Object.assign({}, state, { diskSizeUnit: action.value });
     case 'setIsValidMaxSize':
       return Object.assign({}, state, { isValidMaxSize: action.value });
+    case 'setShowNodesListOnADV':
+      return Object.assign({}, state, { showNodesListOnADV: action.value });
     case 'setNodeNamesForLVS':
       return Object.assign({}, state, { nodeNamesForLVS: action.value });
+    case 'setIsLoading':
+      return Object.assign({}, state, { isLoading: action.value });
+    case 'setError':
+      return Object.assign({}, state, { error: action.value });
+    case 'setAllNodeNamesOnADV':
+      return Object.assign({}, state, { allNodeNamesOnADV: action.value });
+    case 'setNodesDiscoveries':
+      return Object.assign({}, state, { nodesDiscoveries: action.value });
+    case 'setChartSelectedData':
+      return Object.assign({}, state, { chartSelectedData: action.value });
+    case 'setChartTotalData':
+      return Object.assign({}, state, { chartTotalData: action.value });
+    case 'setChartDataUnit':
+      return Object.assign({}, state, { chartDataUnit: action.unit });
     default:
       return initialState;
   }
