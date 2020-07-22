@@ -7,6 +7,8 @@ import {
 import { getNodes } from '@console/local-storage-operator-plugin/src/utils';
 import { State, Action } from '../state';
 import { minSelectedNode } from '../../../../../constants';
+import { DiscoveryDonutChart } from './donut-chart';
+import { makeLocalVolumeSetCall } from '../create-sc';
 import '../../attached-devices.scss';
 
 export const CreateLocalVolumeSet: React.FC<CreateLocalVolumeSetProps> = ({ state, dispatch }) => {
@@ -19,6 +21,7 @@ export const CreateLocalVolumeSet: React.FC<CreateLocalVolumeSetProps> = ({ stat
         <Form noValidate={false} className="ceph-ocs-install__create-sc-form">
           <LocalVolumeSetInner state={state} dispatch={dispatch} />
         </Form>
+        <DiscoveryDonutChart state={state} dispatch={dispatch} />
       </div>
       <ConfirmationModal state={state} dispatch={dispatch} />
       {nodesCnt < minSelectedNode && (
@@ -44,8 +47,9 @@ type CreateLocalVolumeSetProps = {
 
 const ConfirmationModal = ({ state, dispatch }) => {
   const makeLVSCall = () => {
-    dispatch({ type: 'setCreateLVS', value: true });
+    // dispatch({ type: 'setCreateLVS', value: true });
     dispatch({ type: 'setShowConfirmModal', value: false });
+    makeLocalVolumeSetCall(state, dispatch);
   };
 
   const cancel = () => {

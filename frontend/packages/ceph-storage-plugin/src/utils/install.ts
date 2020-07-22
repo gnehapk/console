@@ -7,7 +7,7 @@ import {
 } from '@console/internal/module/k8s';
 import { ocsTaint, NO_PROVISIONER, AVAILABLE } from '../constants';
 import { humanizeBinaryBytes, convertToBaseValue } from '@console/internal/components/utils';
-import { NodesDiscoveries } from '../components/ocs-install/attached-devices/create-sc/state';
+import { Discoveries } from '../components/ocs-install/attached-devices/create-sc/state';
 
 export const hasTaints = (node: NodeKind) => {
   return !_.isEmpty(node.spec?.taints);
@@ -28,16 +28,13 @@ export const filterSCWithNoProv = (sc: StorageClassResourceKind) =>
 export const filterSCWithoutNoProv = (sc: StorageClassResourceKind) =>
   sc?.provisioner !== NO_PROVISIONER;
 
-export const getTotalDeviceCapacity = (list: NodesDiscoveries) => {
-  const totalCapacity = list.reduce((res, node) => {
-    const nodeCapacity = node.discoveries.reduce((sum, device) => {
-      if (device?.status?.state === AVAILABLE) {
-        const capacity = Number(convertToBaseValue(device.size));
-        return sum + capacity;
-      }
-      return sum + 0;
-    }, 0);
-    return res + nodeCapacity;
+export const getTotalDeviceCapacity = (list: Discoveries[]) => {
+  const totalCapacity = list.reduce((res, device) => {
+    if (device?.status?.state === AVAILABLE) {
+      const capacity = Number(convertToBaseValue(device.size));
+      return res + capacity;
+    }
+    return res + 0;
   }, 0);
 
   return humanizeBinaryBytes(totalCapacity);

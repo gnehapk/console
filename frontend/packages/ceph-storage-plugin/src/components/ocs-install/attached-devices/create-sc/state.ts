@@ -27,12 +27,13 @@ export const initialState: State = {
   diskMode: diskModeDropdownItems.BLOCK,
   maxDiskLimit: '',
   nodeNames: [], // nodes selected on the LVS step
-  minDiskSize: 0,
-  maxDiskSize: 'All',
+  minDiskSize: '0',
+  maxDiskSize: '',
   diskSizeUnit: 'TiB',
   isValidMaxSize: true,
   // states for chart
   nodesDiscoveries: [],
+  filteredDiscoveries: [],
   chartSelectedData: '',
   chartTotalData: '',
   chartDataUnit: '',
@@ -56,6 +57,10 @@ export type Discoveries = {
   status: {
     state: string;
   };
+  deviceID: string;
+  type: string;
+  property: string;
+  node: string;
 };
 
 export type OnNextClick = () => void;
@@ -68,8 +73,8 @@ export type State = {
   diskMode: string;
   maxDiskLimit: string;
   nodeNames: string[];
-  minDiskSize: number | string;
-  maxDiskSize: number | string;
+  minDiskSize: string;
+  maxDiskSize: string;
   diskSizeUnit: string;
   isValidMaxSize: boolean;
   chartSelectedData: string;
@@ -80,10 +85,11 @@ export type State = {
   isLoading: boolean;
   error: string;
   allNodeNamesOnADV: string[];
-  nodesDiscoveries: NodesDiscoveries[];
+  nodesDiscoveries: Discoveries[];
   showConfirmModal: boolean;
   createLVS: boolean;
   onNextClick: () => void;
+  filteredDiscoveries: Discoveries[];
 };
 
 export type Action =
@@ -104,13 +110,14 @@ export type Action =
   | { type: 'setIsLoading'; value: boolean }
   | { type: 'setError'; value: string }
   | { type: 'setAllNodeNamesOnADV'; value: string[] }
-  | { type: 'setNodesDiscoveries'; value: NodesDiscoveries }
+  | { type: 'setNodesDiscoveries'; value: Discoveries[] }
   | { type: 'setChartSelectedData'; value: string }
   | { type: 'setChartTotalData'; value: string }
   | { type: 'setChartDataUnit'; unit: string }
   | { type: 'setShowConfirmModal'; value: boolean }
   | { type: 'setCreateLVS'; value: boolean }
-  | { type: 'setOnNextClick'; value: OnNextClick };
+  | { type: 'setOnNextClick'; value: OnNextClick }
+  | { type: 'setFilteredDiscoveries'; value: Discoveries[] };
 
 export const reducer = (state: State, action: Action) => {
   switch (action.type) {
@@ -160,6 +167,8 @@ export const reducer = (state: State, action: Action) => {
       return Object.assign({}, state, { createLVS: action.value });
     case 'setOnNextClick':
       return Object.assign({}, state, { onNextClick: action.value });
+    case 'setFilteredDiscoveries':
+      return Object.assign({}, state, { filteredDiscoveries: action.value });
     default:
       return initialState;
   }

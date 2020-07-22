@@ -21,7 +21,8 @@ export const AutoDetectVolumeInner: React.FC<AutoDetectVolumeInnerProps> = ({
     } else {
       dispatch({ type: 'setNodeNamesForLVS', value: state.nodeNamesForLVS });
     }
-  }, [dispatch, state.allNodeNamesOnADV, state.nodeNamesForLVS, state.showNodesListOnADV]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, state.allNodeNamesOnADV, state.showNodesListOnADV]);
 
   const toggleShowNodesList = () => {
     dispatch({ type: 'setShowNodesListOnADV', value: !state.showNodesListOnADV });

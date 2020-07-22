@@ -24,21 +24,18 @@ import {
   DISCOVERY_CR_NAME,
 } from '@console/local-storage-operator-plugin/src/constants';
 import { getNodes } from '@console/local-storage-operator-plugin/src/utils';
-import {
-  initialState,
-  reducer,
-  State,
-  Action,
-  NodeDiscoveries,
-  NodesDiscoveries,
-  OnNextClick,
-} from './state';
+import { initialState, reducer, State, Action, Discoveries, OnNextClick } from './state';
 import { AutoDetectVolume } from './wizard-pages/auto-detect-volume';
 import { CreateLocalVolumeSet } from './wizard-pages/create-local-volume-set';
 import { nodeResource, nodesDiscoveriesResource } from '../../../../constants/resources';
 import { hasTaints, getTotalDeviceCapacity } from '../../../../utils/install';
+import { AVAILABLE } from '../../../../constants';
 import { CreateOCS } from '../install-lso-sc';
 import '../attached-devices.scss';
+import {
+  DiskMechanicalProperty,
+  DiskType,
+} from '@console/local-storage-operator-plugin/src/components/local-volume-set/types';
 
 enum CreateStepsSC {
   DISCOVER = 'DISCOVER',
@@ -88,7 +85,7 @@ const makeAutoDiscoveryCall = (
     });
 };
 
-const makeLocalVolumeSetCall = (state: State, dispatch: React.Dispatch<Action>) => {
+export const makeLocalVolumeSetCall = (state: State, dispatch: React.Dispatch<Action>) => {
   dispatch({ type: 'setIsLoading', value: true });
   const requestData = getLocalVolumeSetRequestData(state);
   k8sCreate(LocalVolumeSetModel, requestData)
@@ -109,22 +106,66 @@ const CreateSC: React.FC<CreateSCProps> = ({ match }) => {
     K8sResourceKind[]
   >(nodesDiscoveriesResource);
 
+  // React.useEffect(() => {
+  //   if (discoveriesLoaded && !discoveriesLoadError && discoveriesData.length) {
+  //     const nodesDiscoveries: NodesDiscoveries = discoveriesData.reduce((res, discovery) => {
+  //       const name = discovery?.spec?.nodeName;
+  //       const selectedNodes = getNodes(
+  //         state.showNodesListOnADV,
+  //         state.allNodeNamesOnADV,
+  //         state.nodeNamesForLVS,
+  //       );
+  //       if (selectedNodes.includes(name)) {
+  //         const obj = {} as NodeDiscoveries;
+  //         obj.node = name;
+  //         obj.discoveries = discovery?.status?.discoveredDevices ?? [];
+  //         res.push(obj);
+  //       }
+  //       return res;
+  //     }, []);
+
+  //     console.log(nodesDiscoveries, 'lll');
+  //     dispatch({ type: 'setNodesDiscoveries', value: nodesDiscoveries });
+  //     const capacity = getTotalDeviceCapacity(nodesDiscoveries);
+  //     dispatch({ type: 'setChartTotalData', value: capacity?.value });
+  //     dispatch({type: 'setChartSelectedData', value: capacity?.value});
+  //     dispatch({ type: 'setChartDataUnit', unit: capacity?.unit });
+  //   }
+  // }, [
+  //   discoveriesData,
+  //   discoveriesLoaded,
+  //   discoveriesLoadError,
+  //   state.nodeNamesForLVS,
+  //   state.showNodesListOnADV,
+  //   state.allNodeNamesOnADV,
+  // ]);
+
   React.useEffect(() => {
     if (discoveriesLoaded && !discoveriesLoadError && discoveriesData.length) {
-      const nodesDiscoveries: NodesDiscoveries = discoveriesData.reduce((res, discovery) => {
+      const nodesDiscoveries: Discoveries[] = discoveriesData.reduce((res, discovery) => {
         const name = discovery?.spec?.nodeName;
         const selectedNodes = getNodes(
           state.showNodesListOnADV,
           state.allNodeNamesOnADV,
           state.nodeNamesForLVS,
         );
+
+        let availableDisks: Discoveries[] = [];
         if (selectedNodes.includes(name)) {
-          const obj = {} as NodeDiscoveries;
-          obj.node = name;
-          obj.discoveries = discovery?.status?.discoveredDevices ?? [];
-          res.push(obj);
+          const discoveries = discovery?.status?.discoveredDevices ?? [];
+          availableDisks = discoveries.filter((discovery) => {
+            // filter out non supported disks
+            if (
+              discovery?.status?.state === AVAILABLE &&
+              discovery.property === DiskMechanicalProperty.SSD &&
+              discovery.type === DiskType.RawDisk
+            ) {
+              discovery.node = name;
+              return discovery;
+            }
+          });
         }
-        return res;
+        return [...res, ...availableDisks];
       }, []);
 
       dispatch({ type: 'setNodesDiscoveries', value: nodesDiscoveries });
@@ -149,13 +190,6 @@ const CreateSC: React.FC<CreateSCProps> = ({ match }) => {
       dispatch({ type: 'setAllNodeNamesOnADV', value: names });
     }
   }, [nodeData, nodeLoaded, nodeLoadError]);
-
-  // call LVS API once user confirms
-  React.useEffect(() => {
-    if (state.createLVS) {
-      makeLocalVolumeSetCall(state, dispatch);
-    }
-  }, [state, state.createLVS]);
 
   const steps = [
     {
