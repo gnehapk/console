@@ -65,12 +65,17 @@ const getRows: GetRows = (
   setSelectedNodes,
 ) => {
   const { data } = componentProps;
-  const { filteredNodes, preSelected } = customData;
+  const { filteredNodes, preSelected, includeMasterNodes } = customData;
 
   const nodeList = filteredNodes?.length ? filteredNodes : data.map(getName);
-  const filteredData = data.filter(
-    (node: NodeKind) => !hasTaints(node) && nodeList.includes(getName(node)),
-  );
+
+  let filteredData = data;
+
+  if (!includeMasterNodes) {
+    filteredData = data.filter(
+      (node: NodeKind) => !hasTaints(node) && nodeList.includes(getName(node)),
+    );
+  }
 
   const rows = filteredData.map((node: NodeKind) => {
     const cpuSpec: string = getNodeCPUCapacity(node);

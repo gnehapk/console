@@ -47,6 +47,7 @@ export type GetRows = (
     customData?: {
       filteredNodes: string[];
       preSelected?: string[];
+      includeMasterNodes: boolean;
     };
   },
   visibleRows: Set<string>,

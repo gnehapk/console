@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FormGroup, Radio } from '@patternfly/react-core';
+import { FormGroup, Radio, pluralize } from '@patternfly/react-core';
 import { ListPage } from '@console/internal/components/factory';
 import { NodeKind } from '@console/internal/module/k8s';
 import { useK8sWatchResource } from '@console/internal/components/utils/k8s-watch-hook';
@@ -14,6 +14,7 @@ import './auto-detect-volume.scss';
 export const AutoDetectVolumeInner: React.FC<AutoDetectVolumeInnerProps> = ({
   state,
   dispatch,
+  includeMasterNodes = true,
 }) => {
   const [nodeData, nodeLoaded, nodeLoadError] = useK8sWatchResource<NodeKind[]>(nodeResource);
 
@@ -21,7 +22,14 @@ export const AutoDetectVolumeInner: React.FC<AutoDetectVolumeInnerProps> = ({
     if ((nodeLoadError || nodeData.length === 0) && nodeLoaded) {
       dispatch({ type: 'setAllNodeNamesOnADV', value: [] });
     } else if (nodeLoaded) {
-      const names = nodeData.filter((node) => !hasTaints(node)).map((node) => getName(node));
+      let names;
+      
+      if(includeMasterNodes) {
+        names = nodeData.map((node) => getName(node));
+      } else {
+        names = nodeData.filter((node) => !hasTaints(node)).map((node) => getName(node));
+      }
+      
       const hostNames = createMapForHostNames(nodeData);
       dispatch({ type: 'setAllNodeNamesOnADV', value: names });
       dispatch({ type: 'setHostNamesMapForADV', value: hostNames });
@@ -49,7 +57,7 @@ export const AutoDetectVolumeInner: React.FC<AutoDetectVolumeInnerProps> = ({
       <FormGroup label="Node Selector" fieldId="auto-detect-volume--radio-group-node-selector">
         <div id="auto-detect-volume-radio-group-node-selector">
           <Radio
-            label="All nodes"
+            label={`All nodes (${pluralize(state.allNodeNamesOnADV.length, 'node')})`}
             name="nodes-selection"
             id="auto-detect-volume-radio-all-nodes"
             className="auto-detect-volume__all-nodes-radio--padding"
@@ -80,6 +88,7 @@ export const AutoDetectVolumeInner: React.FC<AutoDetectVolumeInnerProps> = ({
               dispatch({ type: 'setNodeNamesForLVS', value: nodes });
             },
             preSelected: state.nodeNamesForLVS,
+            includeMasterNodes,
           }}
         />
       )}
@@ -97,4 +106,5 @@ export const AutoDetectVolumeHeader = () => (
 type AutoDetectVolumeInnerProps = {
   state: State;
   dispatch: React.Dispatch<Action>;
+  includeMasterNodes?: boolean;
 };

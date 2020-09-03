@@ -20,16 +20,17 @@ import '../../attached-devices.scss';
 const makeLocalVolumeSetCall = (state: State, dispatch: React.Dispatch<Action>) => {
   dispatch({ type: 'setIsLoading', value: true });
   const requestData = getLocalVolumeSetRequestData(state);
-  k8sCreate(LocalVolumeSetModel, requestData)
-    .then(() => {
-      state.onNextClick();
-      dispatch({ type: 'setIsLoading', value: false });
-      dispatch({ type: 'setFinalStep', value: true });
-    })
-    .catch((err) => {
-      dispatch({ type: 'setError', value: err.message });
-      dispatch({ type: 'setIsLoading', value: false });
-    });
+  console.log(requestData);
+  // k8sCreate(LocalVolumeSetModel, requestData)
+  //   .then(() => {
+  //     state.onNextClick();
+  //     dispatch({ type: 'setIsLoading', value: false });
+  //     dispatch({ type: 'setFinalStep', value: true });
+  //   })
+  //   .catch((err) => {
+  //     dispatch({ type: 'setError', value: err.message });
+  //     dispatch({ type: 'setIsLoading', value: false });
+  //   });
 };
 
 export const CreateLocalVolumeSet: React.FC<CreateLocalVolumeSetProps> = ({ state, dispatch }) => {
@@ -41,6 +42,7 @@ export const CreateLocalVolumeSet: React.FC<CreateLocalVolumeSetProps> = ({ stat
           <LocalVolumeSetInner
             state={state}
             dispatch={dispatch}
+            includeMasterNodes={false}
             diskTypeOptions={diskTypeDropdownItems}
             diskModeOptions={diskModeDropdownItems}
             allNodesHelpTxt={allNodesSelectorTxt}

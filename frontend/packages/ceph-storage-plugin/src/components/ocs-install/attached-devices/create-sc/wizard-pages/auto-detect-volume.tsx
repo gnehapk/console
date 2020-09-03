@@ -11,7 +11,7 @@ export const AutoDetectVolume: React.FC<AutoDetectVolumeProps> = ({ state, dispa
   <>
     <AutoDetectVolumeHeader />
     <Form noValidate={false} className="ceph-ocs-install__auto-detect-table">
-      <AutoDetectVolumeInner state={state} dispatch={dispatch} />
+      <AutoDetectVolumeInner state={state} dispatch={dispatch} includeMasterNodes={false}/>
     </Form>
   </>
 );

@@ -36,7 +36,8 @@ const CreateLocalVolumeSet: React.FC = withHandlePromise<
     if ((nodeLoadError || nodeData.length === 0) && nodeLoaded) {
       dispatch({ type: 'setNodeNamesForLVS', value: [] });
     } else if (nodeLoaded) {
-      const allNodeNames = nodeData.filter((node) => !hasTaints(node)).map((node) => getName(node));
+      //const allNodeNames = nodeData.filter((node) => !hasTaints(node)).map((node) => getName(node));
+      const allNodeNames = nodeData.map((node) => getName(node));
       const hostNames = createMapForHostNames(nodeData);
       dispatch({ type: 'setNodeNamesForLVS', value: allNodeNames });
       dispatch({ type: 'setHostNamesMapForLVS', value: hostNames });
@@ -47,14 +48,15 @@ const CreateLocalVolumeSet: React.FC = withHandlePromise<
     event.preventDefault();
 
     const requestData = getLocalVolumeSetRequestData(state);
+    console.log(requestData);
 
-    handlePromise(k8sCreate(LocalVolumeSetModel, requestData), () =>
-      history.push(
-        `/k8s/ns/${ns}/clusterserviceversions/${appName}/${referenceForModel(
-          LocalVolumeSetModel,
-        )}/${state.volumeSetName}`,
-      ),
-    );
+    // handlePromise(k8sCreate(LocalVolumeSetModel, requestData), () =>
+    //   history.push(
+    //     `/k8s/ns/${ns}/clusterserviceversions/${appName}/${referenceForModel(
+    //       LocalVolumeSetModel,
+    //     )}/${state.volumeSetName}`,
+    //   ),
+    // );
   };
 
   const getDisabledCondition = () => {
